@@ -20,6 +20,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, fullName: string) => Promise<void>;
   logout: () => void;
+  updateProfile: (data: { full_name: string }) => Promise<UserProfile>;
   error: string | null;
 }
 
@@ -117,6 +118,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     router.push('/');
   };
 
+  // Update profile function
+  const updateProfile = async (data: { full_name: string }) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const updatedProfile = await authApi.updateProfile(data);
+      setUser(updatedProfile);
+      return updatedProfile;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Context value
   const value = {
     user,
@@ -125,6 +143,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     register,
     logout,
+    updateProfile,
     error
   };
 

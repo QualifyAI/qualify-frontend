@@ -24,6 +24,12 @@ interface RegisterRequest {
   full_name: string;
 }
 
+// Interface for update profile request
+interface UpdateProfileRequest {
+  full_name: string;
+  // Add any other necessary fields for updating the profile
+}
+
 // Generic fetch function with authentication and error handling
 async function fetchApi<T>(
   endpoint: string, 
@@ -95,6 +101,14 @@ export const authApi = {
   // Get current user profile
   getProfile: async (): Promise<UserProfile> => {
     return fetchApi<UserProfile>('/auth/me');
+  },
+  
+  // Update user profile
+  updateProfile: async (data: UpdateProfileRequest): Promise<UserProfile> => {
+    return fetchApi<UserProfile>('/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   },
 };
 

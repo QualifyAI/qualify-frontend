@@ -1,6 +1,9 @@
+'use client';
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/auth-context";
 
 const navItems = [
   {
@@ -69,6 +72,16 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user, logout, isAuthenticated } = useAuth();
+
+  // Generate initials from user's full name
+  const getInitials = (name: string) => {
+    if (!name) return '';
+    return name.split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase();
+  };
 
   return (
     <div className="w-64 h-screen bg-white border-r fixed left-0 top-0 z-10 flex flex-col hidden md:flex">
@@ -104,15 +117,37 @@ export default function Sidebar() {
         </ul>
       </nav>
       <div className="p-4 w-full border-t">
-        <div className="flex items-center">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-orange-500 flex items-center justify-center text-white font-semibold">
-            JS
+        {isAuthenticated && user ? (
+          <div className="flex items-center">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-orange-500 flex items-center justify-center text-white font-semibold">
+              {getInitials(user.full_name)}
+            </div>
+            <div className="ml-3 flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user.full_name}</p>
+              <p className="text-xs text-gray-500 truncate">{user.email}</p>
+            </div>
+            <button
+              onClick={logout}
+              className="ml-2 text-gray-400 hover:text-gray-600"
+              aria-label="Logout"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </button>
           </div>
-          <div className="ml-3">
-            <p className="text-sm font-medium">John Smith</p>
-            <p className="text-xs text-gray-500">john@example.com</p>
+        ) : (
+          <div className="flex items-center justify-center">
+            <Link 
+              href="/login"
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Sign in
+            </Link>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

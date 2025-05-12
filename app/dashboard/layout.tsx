@@ -1,14 +1,41 @@
 'use client';
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useAuth } from "@/context/auth-context";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // If not authenticated, don't render dashboard content
+  if (!isAuthenticated) {
+    return null; // Will be redirected by the useEffect
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
@@ -43,6 +70,7 @@ export default function DashboardLayout({
               </svg>
               View Reports
             </Button>
+            
             <Button size="sm" className="rounded-full">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
