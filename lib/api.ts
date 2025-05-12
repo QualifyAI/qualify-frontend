@@ -142,17 +142,17 @@ export const authApi = {
 export const learningPathsApi = {
   // Get all available niches
   getNiches: async (): Promise<Niche[]> => {
-    return fetchApi<Niche[]>('/learning-paths/niches');
+    return await fetchApi<Niche[]>('/api/learning-path/niches');
   },
   
   // Get questions for tailoring learning path based on niche
   getQuestions: async (nicheId: number): Promise<PathQuestion[]> => {
-    return fetchApi<PathQuestion[]>(`/learning-paths/questions?niche_id=${nicheId}`);
+    return await fetchApi<PathQuestion[]>(`/api/learning-path/questions?nicheId=${nicheId}`);
   },
   
   // Generate a learning path based on user's answers
   generatePath: async (request: LearningPathRequest): Promise<LearningPath> => {
-    return fetchApi<LearningPath>('/learning-paths/generate', {
+    return await fetchApi<LearningPath>('/api/learning-path/generate', {
       method: 'POST',
       body: JSON.stringify(request),
     });
@@ -160,7 +160,7 @@ export const learningPathsApi = {
   
   // Save a learning path to user's account
   savePath: async (path: LearningPath): Promise<LearningPath> => {
-    return fetchApi<LearningPath>('/learning-paths', {
+    return await fetchApi<LearningPath>('/api/learning-path/save', {
       method: 'POST',
       body: JSON.stringify(path),
     });
@@ -168,12 +168,12 @@ export const learningPathsApi = {
   
   // Get user's saved learning paths
   getUserPaths: async (): Promise<LearningPath[]> => {
-    return fetchApi<LearningPath[]>('/learning-paths/user');
+    return await fetchApi<LearningPath[]>('/api/learning-path/user');
   },
   
   // Get a specific learning path by ID
-  getPathById: async (pathId: string): Promise<LearningPath> => {
-    return fetchApi<LearningPath>(`/learning-paths/${pathId}`);
+  getPathById: async (id: string): Promise<LearningPath> => {
+    return await fetchApi<LearningPath>(`/api/learning-path/${id}`);
   },
 };
 

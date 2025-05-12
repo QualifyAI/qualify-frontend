@@ -5,11 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/context/auth-context';
 import { learningPathsApi } from '@/lib/api';
 import { LearningPath, Niche, PathQuestion } from '@/lib/models/learning-path';
 import { useRouter } from 'next/navigation';
 import { hasToken } from '@/lib/auth';
+import Link from 'next/link';
 
 // Steps in the learning path journey
 enum PathStep {
@@ -21,6 +23,7 @@ enum PathStep {
 export default function LearningPathsPage() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState('create');
 
   // State for the learning path journey
   const [step, setStep] = useState<PathStep>(PathStep.SELECT_NICHE);
@@ -39,6 +42,22 @@ export default function LearningPathsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   
+  // Saved paths state
+  const [savedPaths, setSavedPaths] = useState<LearningPath[]>([]);
+  const [loadingSavedPaths, setLoadingSavedPaths] = useState(false);
+  const [savedPathsError, setSavedPathsError] = useState<string | null>(null);
+
+  // Check for tab URL parameter on mount
+  useEffect(() => {
+    // Check if there's a tab parameter in the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    
+    if (tabParam === 'saved') {
+      setActiveTab('saved');
+    }
+  }, []);
+
   // Check authentication on component mount
   useEffect(() => {
     if (!hasToken()) {
@@ -79,6 +98,42 @@ export default function LearningPathsPage() {
       fetchNiches();
     }
   }, [isAuthenticated, router]);
+
+  // Load user's saved paths
+  useEffect(() => {
+    const fetchSavedPaths = async () => {
+      if (activeTab !== 'saved') return;
+      
+      try {
+        setLoadingSavedPaths(true);
+        setSavedPathsError(null);
+        
+        // Check authentication first
+        if (!hasToken()) {
+          router.push('/login');
+          return;
+        }
+        
+        const paths = await learningPathsApi.getUserPaths();
+        setSavedPaths(paths);
+      } catch (err) {
+        console.error("Failed to fetch saved learning paths:", err);
+        // Check for authentication error
+        if (err instanceof Error && err.message.includes('401')) {
+          setSavedPathsError("Your session has expired. Please log in again.");
+          router.push('/login');
+          return;
+        }
+        setSavedPathsError("Failed to load your saved learning paths. Please try again later.");
+      } finally {
+        setLoadingSavedPaths(false);
+      }
+    };
+    
+    if (isAuthenticated) {
+      fetchSavedPaths();
+    }
+  }, [activeTab, isAuthenticated, router]);
   
   // Filter niches based on search query
   useEffect(() => {
@@ -185,6 +240,31 @@ export default function LearningPathsPage() {
       // Call the API to generate the path
       const path = await learningPathsApi.generatePath(request);
       setGeneratedPath(path);
+      
+      // Automatically save the generated path
+      const savedPath = await learningPathsApi.savePath(path);
+      
+      // Show success message
+      const saveNotification = document.createElement('div');
+      saveNotification.className = 'fixed bottom-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-md shadow-md z-50';
+      saveNotification.innerHTML = `
+        <div class="flex items-center">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+          <span>Learning path saved automatically!</span>
+        </div>
+      `;
+      document.body.appendChild(saveNotification);
+      
+      // Remove the notification after 3 seconds
+      setTimeout(() => {
+        saveNotification.remove();
+      }, 3000);
+      
+      // Add to saved paths
+      setSavedPaths([savedPath, ...savedPaths]);
+      
       setStep(PathStep.VIEW_PATH);
     } catch (err: any) {
       console.error("Failed to generate learning path:", err);
@@ -237,8 +317,13 @@ export default function LearningPathsPage() {
     
     try {
       setLoading(true);
-      await learningPathsApi.savePath(generatedPath);
-      // Show success message or redirect to saved paths
+      const savedPath = await learningPathsApi.savePath(generatedPath);
+      // Show success notification
+      alert("Learning path saved successfully!");
+      
+      // Add to saved paths and switch to saved tab
+      setSavedPaths([savedPath, ...savedPaths]);
+      setActiveTab('saved');
     } catch (err) {
       console.error("Failed to save learning path:", err);
       // Check for authentication error
@@ -507,18 +592,127 @@ export default function LearningPathsPage() {
       </div>
     );
   };
+  
+  // Render saved learning paths
+  const renderSavedPaths = () => {
+    if (loadingSavedPaths) {
+      return (
+        <div className="flex justify-center items-center py-12">
+          <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+        </div>
+      );
+    }
+    
+    if (savedPathsError) {
+      return (
+        <div className="bg-red-50 text-red-700 p-6 rounded-md my-4">
+          {savedPathsError}
+        </div>
+      );
+    }
+    
+    if (savedPaths.length === 0) {
+      return (
+        <div className="text-center py-16">
+          <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold mb-2">No Learning Paths Yet</h3>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            You haven't created any learning paths yet. Create your first personalized learning journey to get started.
+          </p>
+          <Button onClick={() => setActiveTab('create')}>
+            Create Your First Path
+          </Button>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {savedPaths.map((path) => (
+            <Card key={path.id} className="hover:shadow-md transition-all hover:border-blue-200">
+              <CardHeader className="pb-3">
+                <div className="flex items-center mb-2">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg mr-3">
+                    {path.niche.charAt(0)}
+                  </div>
+                  <CardTitle className="line-clamp-1">{path.title}</CardTitle>
+                </div>
+                <CardDescription className="line-clamp-2">{path.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="pb-4">
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {path.modules.slice(0, 3).map((module, idx) => (
+                    <span key={idx} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                      {module.title}
+                    </span>
+                  ))}
+                  {path.modules.length > 3 && (
+                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+                      +{path.modules.length - 3} more
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center text-sm text-gray-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  {path.estimatedTime}
+                </div>
+              </CardContent>
+              <CardFooter className="pt-0">
+                <Link href={`/dashboard/learning-paths/${path.id}`} className="w-full">
+                  <Button variant="outline" className="w-full">View Path</Button>
+                </Link>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div>
-      {step === PathStep.SELECT_NICHE && renderNicheSelection()}
-      {step === PathStep.ANSWER_QUESTIONS && !loadingPath && renderQuestionFlow()}
-      {loadingPath && renderLoading()}
-      {step === PathStep.VIEW_PATH && generatedPath && (
-        <LearningPathView 
-          path={generatedPath}
-          onReset={handleReset}
-          onSave={handleSavePath}
-        />
+      {/* Show tabs only if not in question flow or viewing a generated path */}
+      {(activeTab === 'create' && step === PathStep.SELECT_NICHE) || activeTab === 'saved' ? (
+        <div className="mb-8">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-3xl font-bold mb-1">Learning Paths</h1>
+                <p className="text-gray-600">Create and access your personalized learning journeys</p>
+              </div>
+              <TabsList className="grid grid-cols-2 w-[300px]">
+                <TabsTrigger value="create">Create New</TabsTrigger>
+                <TabsTrigger value="saved">My Paths</TabsTrigger>
+              </TabsList>
+            </div>
+            
+            <TabsContent value="create" className="mt-0">
+              {renderNicheSelection()}
+            </TabsContent>
+            
+            <TabsContent value="saved" className="mt-0">
+              {renderSavedPaths()}
+            </TabsContent>
+          </Tabs>
+        </div>
+      ) : (
+        <>
+          {activeTab === 'create' && step === PathStep.ANSWER_QUESTIONS && !loadingPath && renderQuestionFlow()}
+          {loadingPath && renderLoading()}
+          {activeTab === 'create' && step === PathStep.VIEW_PATH && generatedPath && (
+            <LearningPathView 
+              path={generatedPath}
+              onReset={handleReset}
+            />
+          )}
+        </>
       )}
     </div>
   );
@@ -526,12 +720,10 @@ export default function LearningPathsPage() {
 
 function LearningPathView({ 
   path,
-  onReset,
-  onSave
+  onReset
 }: { 
   path: LearningPath;
   onReset: () => void;
-  onSave: () => void;
 }) {
   return (
     <div className="pb-16">
@@ -661,18 +853,20 @@ function LearningPathView({
 
         {/* Call to action buttons */}
         <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
-          <Button variant="outline" size="lg" className="gap-2" onClick={onSave}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z" />
-            </svg>
-            Save Learning Path
-          </Button>
           <Button size="lg" className="gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
             </svg>
             Begin Learning Journey
           </Button>
+          <Link href="/dashboard/learning-paths?tab=saved">
+            <Button variant="outline" size="lg" className="gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+              </svg>
+              View All Saved Paths
+            </Button>
+          </Link>
           <Button variant="ghost" size="lg" onClick={onReset} className="gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />

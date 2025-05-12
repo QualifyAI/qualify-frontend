@@ -1,14 +1,43 @@
 'use client';
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useAuth } from "@/context/auth-context";
+import { learningPathsApi } from "@/lib/api";
+import { LearningPath } from "@/lib/models/learning-path";
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
+  const [loadingPaths, setLoadingPaths] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch user's learning paths
+  useEffect(() => {
+    const fetchLearningPaths = async () => {
+      try {
+        setLoadingPaths(true);
+        const paths = await learningPathsApi.getUserPaths();
+        setLearningPaths(paths);
+      } catch (err) {
+        console.error("Failed to fetch learning paths:", err);
+        setError("Failed to load your learning paths. Please try again later.");
+      } finally {
+        setLoadingPaths(false);
+      }
+    };
+
+    if (user) {
+      fetchLearningPaths();
+    }
+  }, [user]);
+
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Welcome back, John</h1>
+        <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.full_name || "User"}</h1>
         <p className="text-gray-500">Track your career preparation progress and start new analyses</p>
       </div>
       
@@ -62,16 +91,20 @@ export default function Dashboard() {
         
         <Card className="border-0 shadow-md">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Learning Resources</CardTitle>
-            <CardDescription>Recommended courses</CardDescription>
+            <CardTitle className="text-lg">Learning Paths</CardTitle>
+            <CardDescription>Your personalized journeys</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-bold text-indigo-600">8</p>
-                <p className="text-sm text-gray-600">3 in progress</p>
+                <p className="text-3xl font-bold text-indigo-600">{learningPaths.length}</p>
+                <p className="text-sm text-gray-600">
+                  <Link href="/dashboard/learning-paths" className="hover:underline">
+                    {learningPaths.length > 0 ? "View your paths" : "Create your first path"}
+                  </Link>
+                </p>
               </div>
-              <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+              <Link href="/dashboard/learning-paths" className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2v8"></path>
                   <path d="m16 4-4 4-4-4"></path>
@@ -81,7 +114,7 @@ export default function Dashboard() {
                   <path d="M12 22v-8"></path>
                   <path d="m16 20-4-4-4 4"></path>
                 </svg>
-              </div>
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -144,61 +177,66 @@ export default function Dashboard() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Recommended Courses</CardTitle>
-                <CardDescription>Based on your skill gaps</CardDescription>
+                <CardTitle>Your Learning Paths</CardTitle>
+                <CardDescription>Continue your personalized learning journey</CardDescription>
               </div>
               <Button variant="outline" size="sm">
-                <Link href="/dashboard/learning-paths">View All</Link>
+                <Link href="/dashboard/learning-paths">Create New</Link>
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                {
-                  title: "Advanced React Patterns",
-                  platform: "Frontend Masters",
-                  difficulty: "Intermediate",
-                  duration: "6 hours",
-                  bgClass: "bg-blue-100",
-                },
-                {
-                  title: "AWS Certified Solutions Architect",
-                  platform: "Udemy",
-                  difficulty: "Advanced",
-                  duration: "32 hours",
-                  bgClass: "bg-orange-100",
-                },
-                {
-                  title: "Docker and Kubernetes: The Complete Guide",
-                  platform: "Coursera",
-                  difficulty: "Intermediate",
-                  duration: "20 hours",
-                  bgClass: "bg-green-100",
-                },
-              ].map((course, i) => (
-                <div key={i} className="flex p-3 bg-gray-50 rounded-lg">
-                  <div className={`flex-shrink-0 w-12 h-12 ${course.bgClass} rounded-lg flex items-center justify-center`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                    </svg>
-                  </div>
-                  <div className="ml-4 flex-grow">
-                    <p className="font-medium">{course.title}</p>
-                    <p className="text-xs text-gray-500">{course.platform}</p>
-                    <div className="flex mt-1">
-                      <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full mr-2">
-                        {course.difficulty}
-                      </span>
-                      <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full">
-                        {course.duration}
-                      </span>
-                    </div>
-                  </div>
+            {loadingPaths ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 text-red-700 p-4 rounded-md">
+                {error}
+              </div>
+            ) : learningPaths.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 8v4"></path>
+                    <path d="M12 16h.01"></path>
+                  </svg>
                 </div>
-              ))}
-            </div>
+                <p className="text-gray-600 mb-4">You haven't created any learning paths yet.</p>
+                <Button>
+                  <Link href="/dashboard/learning-paths">Create Your First Path</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {learningPaths.slice(0, 3).map((path, i) => (
+                  <Link href={`/dashboard/learning-paths/${path.id}`} key={path.id}>
+                    <div className="flex p-3 bg-gray-50 hover:bg-gray-100 transition-colors rounded-lg cursor-pointer">
+                      <div className="flex-shrink-0 w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
+                        <span className="text-lg font-bold">{path.niche.charAt(0)}</span>
+                      </div>
+                      <div className="ml-4 flex-grow">
+                        <p className="font-medium">{path.title}</p>
+                        <p className="text-xs text-gray-500">{path.niche}</p>
+                        <div className="flex mt-1">
+                          <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full">
+                            {path.estimatedTime}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+                {learningPaths.length > 3 && (
+                  <div className="text-center pt-2">
+                    <Link href="/dashboard/learning-paths" className="text-sm text-blue-600 hover:underline">
+                      View all {learningPaths.length} learning paths
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
