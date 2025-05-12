@@ -47,6 +47,17 @@ async function fetchApi<T>(
   const tokens = getStoredTokens();
   if (tokens?.access_token) {
     headers['Authorization'] = `Bearer ${tokens.access_token}`;
+  } else {
+    // Log authentication issues - in a real app you might want to redirect here
+    console.warn(`API call to ${endpoint} attempted without authentication token`);
+    
+    // For endpoints that require authentication, throw an error
+    if (endpoint.includes('/learning-paths/generate') || 
+        endpoint.includes('/learning-paths/user') ||
+        endpoint === '/auth/me' || 
+        endpoint.includes('/skill-gap/')) {
+      throw new Error('Authentication required. Please log in.');
+    }
   }
   
   const config = {
@@ -54,22 +65,37 @@ async function fetchApi<T>(
     headers,
   };
   
-  const response = await fetch(url, config);
-  
-  // Handle HTTP errors
-  if (!response.ok) {
-    let errorData;
-    try {
-      errorData = await response.json();
-    } catch (e) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+  try {
+    const response = await fetch(url, config);
+    
+    // Handle HTTP errors
+    if (!response.ok) {
+      let errorData;
+      let errorMsg = `HTTP error! Status: ${response.status}`;
+      
+      try {
+        errorData = await response.json();
+        errorMsg = errorData.detail || errorMsg;
+      } catch (e) {
+        // If we can't parse JSON, use the default error message
+      }
+      
+      // Special handling for authentication errors
+      if (response.status === 401) {
+        console.error('Authentication failed:', errorMsg);
+        errorMsg = `Authentication failed (401): ${errorMsg}`;
+      }
+      
+      throw new Error(errorMsg);
     }
-    throw new Error(errorData.detail || `HTTP error! Status: ${response.status}`);
+    
+    // Parse JSON response
+    const data = await response.json();
+    return data as T;
+  } catch (error) {
+    console.error(`API Error for ${endpoint}:`, error);
+    throw error;
   }
-  
-  // Parse JSON response
-  const data = await response.json();
-  return data as T;
 }
 
 // Auth API functions
