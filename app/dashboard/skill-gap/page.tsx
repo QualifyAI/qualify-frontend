@@ -349,6 +349,9 @@ export default function SkillGapAnalysisPage() {
 
   // Render the analysis results
   const renderResults = () => {
+    // State for the active tab in the results view
+    const [activeTab, setActiveTab] = useState("gaps");
+    
     return (
       <div className="pb-16">
         <div className="relative bg-gradient-to-r from-blue-600 to-indigo-700 py-16 px-4 mb-10 rounded-xl text-white">
@@ -415,7 +418,7 @@ export default function SkillGapAnalysisPage() {
         </div>
 
         <div className="max-w-6xl mx-auto px-4">
-          <Tabs defaultValue="gaps" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full sm:w-auto sm:inline-grid sm:grid-cols-4 mb-8">
               <TabsTrigger value="gaps">Skill Gaps</TabsTrigger>
               <TabsTrigger value="matched">Matched Skills</TabsTrigger>

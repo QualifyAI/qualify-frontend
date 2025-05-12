@@ -9,8 +9,8 @@ const TabsContext = React.createContext<{
 } | null>(null);
 
 interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
-  value: string;
-  onValueChange: (value: string) => void;
+  value?: string;
+  onValueChange?: (value: string) => void;
   defaultValue?: string;
   children: React.ReactNode;
 }
@@ -18,16 +18,33 @@ interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
 const Tabs = ({
   value,
   onValueChange,
+  defaultValue,
   className,
   children,
   ...props
 }: TabsProps) => {
+  // Internal state for uncontrolled mode
+  const [internalValue, setInternalValue] = React.useState(defaultValue || "");
+  
+  // Use controlled value if provided, otherwise use internal state
+  const selectedValue = value !== undefined ? value : internalValue;
+  
+  // Handler that calls the external handler in controlled mode
+  // or updates internal state in uncontrolled mode
+  const handleValueChange = React.useCallback((newValue: string) => {
+    if (onValueChange) {
+      onValueChange(newValue);
+    } else {
+      setInternalValue(newValue);
+    }
+  }, [onValueChange]);
+
   const contextValue = React.useMemo(
     () => ({
-      selectedValue: value,
-      onChange: onValueChange,
+      selectedValue,
+      onChange: handleValueChange,
     }),
-    [value, onValueChange]
+    [selectedValue, handleValueChange]
   );
 
   return (
