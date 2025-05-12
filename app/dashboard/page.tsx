@@ -7,12 +7,35 @@ import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
 import { learningPathsApi } from "@/lib/api";
 import { LearningPath } from "@/lib/models/learning-path";
+import { mockResumeAnalysis } from "@/lib/models/resume-analysis";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
   const [loadingPaths, setLoadingPaths] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Mock skill analyses - in a real implementation, these would come from an API
+  const mockSkillAnalyses = [
+    {
+      title: "Full Stack Developer",
+      date: "May 15, 2023",
+      status: "High match",
+      statusColor: "bg-green-500",
+    },
+    {
+      title: "Machine Learning Engineer",
+      date: "Apr 22, 2023",
+      status: "Medium match",
+      statusColor: "bg-yellow-500",
+    },
+    {
+      title: "DevOps Engineer",
+      date: "Mar 10, 2023",
+      status: "Low match",
+      statusColor: "bg-red-500",
+    },
+  ];
 
   // Fetch user's learning paths
   useEffect(() => {
@@ -73,7 +96,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-bold text-orange-500">85<span className="text-xl">/100</span></p>
+                <p className="text-3xl font-bold text-orange-500">{mockResumeAnalysis.overallScore}<span className="text-xl">/100</span></p>
                 <p className="text-sm text-green-600">+12 from previous</p>
               </div>
               <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-500">
@@ -135,26 +158,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {[
-                {
-                  title: "Full Stack Developer",
-                  date: "May 15, 2023",
-                  status: "High match",
-                  statusColor: "bg-green-500",
-                },
-                {
-                  title: "Machine Learning Engineer",
-                  date: "Apr 22, 2023",
-                  status: "Medium match",
-                  statusColor: "bg-yellow-500",
-                },
-                {
-                  title: "DevOps Engineer",
-                  date: "Mar 10, 2023",
-                  status: "Low match",
-                  statusColor: "bg-red-500",
-                },
-              ].map((item, i) => (
+              {mockSkillAnalyses.map((item, i) => (
                 <div key={i} className="flex items-center p-3 bg-gray-50 rounded-lg">
                   <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold">
                     {item.title.charAt(0)}
@@ -259,80 +263,42 @@ export default function Dashboard() {
               <div>
                 <h4 className="font-medium mb-3">Category Scores</h4>
                 <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">ATS Compatibility</span>
-                      <span className="text-sm font-medium">85%</span>
+                  {mockResumeAnalysis.categoryScores.map((category, index) => (
+                    <div key={index}>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm font-medium">{category.category}</span>
+                        <span className="text-sm font-medium">{category.score}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-blue-600 to-orange-500 h-2 rounded-full" 
+                          style={{ width: `${category.score}%` }}
+                        ></div>
+                      </div>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-gradient-to-r from-blue-600 to-orange-500 h-2 rounded-full" style={{ width: "85%" }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">Content Quality</span>
-                      <span className="text-sm font-medium">70%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-gradient-to-r from-blue-600 to-orange-500 h-2 rounded-full" style={{ width: "70%" }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">Structure</span>
-                      <span className="text-sm font-medium">90%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-gradient-to-r from-blue-600 to-orange-500 h-2 rounded-full" style={{ width: "90%" }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium">Technical Language</span>
-                      <span className="text-sm font-medium">65%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-gradient-to-r from-blue-600 to-orange-500 h-2 rounded-full" style={{ width: "65%" }}></div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
               
               <div>
                 <h4 className="font-medium mb-3">Top Recommendations</h4>
                 <ul className="space-y-2">
-                  <li className="flex items-start">
-                    <svg className="w-5 h-5 text-orange-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                    </svg>
-                    <span className="text-sm">
-                      Add more quantifiable achievements in your work experience section
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <svg className="w-5 h-5 text-orange-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                    </svg>
-                    <span className="text-sm">
-                      Include more keywords related to cloud technologies (AWS, Azure)
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <svg className="w-5 h-5 text-green-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    <span className="text-sm">
-                      Great job using strong action verbs throughout your resume
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <svg className="w-5 h-5 text-orange-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                    </svg>
-                    <span className="text-sm">
-                      Consider adding a more concise professional summary
-                    </span>
-                  </li>
+                  {mockResumeAnalysis.recommendations.map((recommendation, index) => (
+                    <li key={index} className="flex items-start">
+                      {recommendation.type === 'improvement' ? (
+                        <svg className="w-5 h-5 text-orange-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-green-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                      )}
+                      <span className="text-sm">
+                        {recommendation.text}
+                      </span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             </div>

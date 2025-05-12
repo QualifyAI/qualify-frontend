@@ -1,84 +1,81 @@
-// Skill Gap Analysis related interfaces
-
-// Basic skill interface
-export interface Skill {
-  name: string;
-  category: string;
-  relevance: number;
-}
-
-// Missing skill with additional properties
-export interface MissingSkill extends Skill {
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-}
-
-// Skills to emphasize with recommendation
-export interface EmphasisSkill extends Skill {
-  recommendation: string;
-}
-
-// Learning resource for a skill
-export interface SkillResource {
+// Resource for learning or projects
+export interface Resource {
+  title: string;
+  url: string;
   type: string;
-  name: string;
-  link: string;
-  provider: string;
-  rating: number;
-  description?: string;
 }
 
-// Skill-specific learning resources
-export interface SkillLearningResources {
+// Detailed resource with additional information
+export interface DetailedResource extends Resource {
+  difficulty: string;
+  description: string;
+}
+
+// Matching skill between resume and job requirements
+export interface SkillMatch {
   skill: string;
-  resources: SkillResource[];
+  level: string;
+  match_score: number;
+  context: string;
 }
 
-// Project recommendation
+// Missing or underdeveloped skill
+export interface SkillGap {
+  skill: string;
+  importance: string;
+  description: string;
+  learning_resources: Resource[];
+}
+
+// Project recommendation to address skill gaps
 export interface ProjectRecommendation {
   title: string;
-  skills: string[];
   description: string;
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-  timeEstimate: string;
+  difficulty: string;
+  estimated_time: string;
+  skills_addressed: string[];
+  resources: Resource[];
 }
 
-// Complete skill gap analysis result
+// Complete skill gap analysis
 export interface SkillGapAnalysis {
-  matchedSkills: Skill[];
-  missingSkills: MissingSkill[];
-  emphasizeSkills: EmphasisSkill[];
-  projectRecommendations: ProjectRecommendation[];
-  keywordSuggestions: string[];
-  learningResources: SkillLearningResources[];
-  jobFitScore: number;
-  industry: string;
-  role: string;
-  analysisId?: string;
-  createdAt?: string;
+  id?: string;
+  userId?: string;
+  job_title: string;
+  job_description: string;
+  resume_text: string;
+  match_percentage: number;
+  matched_skills: SkillMatch[];
+  missing_skills: SkillGap[];
+  project_recommendations: ProjectRecommendation[];
+  improvement_suggestions: Record<string, string[]>;
+  overall_assessment: string;
+  createdAt?: string; 
+  job_posting_url?: string;
 }
 
 // Request payload for skill gap analysis
 export interface SkillGapAnalysisRequest {
   resumeFile?: File;
   resumeText?: string;
-  githubUrl?: string;
+  resumeId?: string; // Added resumeId for selecting stored resumes
   jobDescription?: string;
   jobPostingUrl?: string;
+  githubUrl?: string;
 }
 
-// Resume analysis result (for future integration with resume enhancement)
+// Resume analysis result (ATS optimization)
 export interface ResumeAnalysisResult {
-  atsScore: number;
-  contentFeedback: {
-    strengths: string[];
-    weaknesses: string[];
-  };
-  structureFeedback: {
-    sections: {
-      name: string;
-      score: number;
-      feedback: string;
-    }[];
-  };
-  recommendations: string[];
+  ats_score: number;
+  keyword_match: number;
+  formatting_score: number;
+  content_score: number;
+  suggestions: Record<string, string[]>;
+  highlighted_resume: string;
+}
+
+// Learning resources for a specific skill
+export interface SkillLearningResources {
+  skill: string;
+  resources: DetailedResource[];
 } 

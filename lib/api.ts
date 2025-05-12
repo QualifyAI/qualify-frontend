@@ -8,6 +8,22 @@ import {
   SkillLearningResources
 } from './models/skill-gap';
 
+// Resume types
+export interface Resume {
+  id: string;
+  title: string;
+  content: string;
+  file_name?: string;
+  is_primary: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ResumeListResponse {
+  resumes: Resume[];
+  total: number;
+}
+
 // Define API base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -192,6 +208,10 @@ export const skillGapApi = {
       formData.append('resume_text', data.resumeText);
     }
     
+    if (data.resumeId) {
+      formData.append('resume_id', data.resumeId);
+    }
+    
     if (data.githubUrl) {
       formData.append('github_url', data.githubUrl);
     }
@@ -204,29 +224,53 @@ export const skillGapApi = {
       formData.append('job_posting_url', data.jobPostingUrl);
     }
     
-    return fetchApi<SkillGapAnalysis>('/skill-gap/analyze', {
-      method: 'POST',
-      headers: {
-        // Let the browser set the appropriate Content-Type for FormData
-        'Content-Type': undefined as any,
-      },
-      body: formData,
-    });
+    // Get the stored auth token
+    const tokens = getStoredTokens();
+    const authHeader = tokens?.access_token ? `Bearer ${tokens.access_token}` : '';
+    
+    // Make a direct fetch call instead of using fetchApi to avoid header issues with FormData
+    const url = `${API_BASE_URL}/api/skill-gap/analyze`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        let errorMsg = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.detail || errorMsg;
+        } catch (e) {
+          // If we can't parse JSON, use the default error message
+        }
+        throw new Error(errorMsg);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('API Error for skill gap analysis:', error);
+      throw error;
+    }
   },
   
   // Get skill gap analysis history
   getAnalysisHistory: async (): Promise<SkillGapAnalysis[]> => {
-    return fetchApi<SkillGapAnalysis[]>('/skill-gap/history');
+    return fetchApi<SkillGapAnalysis[]>('/api/skill-gap/history');
   },
   
   // Get a specific analysis by ID
   getAnalysisById: async (analysisId: string): Promise<SkillGapAnalysis> => {
-    return fetchApi<SkillGapAnalysis>(`/skill-gap/history/${analysisId}`);
+    return fetchApi<SkillGapAnalysis>(`/api/skill-gap/history/${analysisId}`);
   },
   
   // Generate project recommendations based on missing skills
   getProjectRecommendations: async (skills: string[]): Promise<ProjectRecommendation[]> => {
-    return fetchApi<ProjectRecommendation[]>('/skill-gap/projects', {
+    return fetchApi<ProjectRecommendation[]>('/api/skill-gap/projects', {
       method: 'POST',
       body: JSON.stringify({ skills }),
     });
@@ -234,7 +278,7 @@ export const skillGapApi = {
   
   // Get learning resources for specific skills
   getLearningResources: async (skills: string[]): Promise<SkillLearningResources[]> => {
-    return fetchApi<SkillLearningResources[]>('/skill-gap/resources', {
+    return fetchApi<SkillLearningResources[]>('/api/skill-gap/resources', {
       method: 'POST',
       body: JSON.stringify({ skills }),
     });
@@ -245,12 +289,96 @@ export const skillGapApi = {
     const formData = new FormData();
     formData.append('resume_file', resumeFile);
     
-    return fetchApi<ResumeAnalysisResult>('/resume/analyze', {
+    return fetchApi<ResumeAnalysisResult>('/api/resume/analyze', {
       method: 'POST',
       headers: {
         'Content-Type': undefined as any,
       },
       body: formData,
+    });
+  },
+};
+
+// Resume management API functions
+export const resumeApi = {
+  // Upload a new resume
+  uploadResume: async (file: File, title: string, isPrimary: boolean = false): Promise<Resume> => {
+    const formData = new FormData();
+    formData.append('resume_file', file);
+    formData.append('title', title);
+    formData.append('is_primary', isPrimary.toString());
+    
+    const tokens = getStoredTokens();
+    const authHeader = tokens?.access_token ? `Bearer ${tokens.access_token}` : '';
+    
+    const response = await fetch(`${API_BASE_URL}/api/resumes`, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      let errorMsg = `HTTP error! Status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.detail || errorMsg;
+      } catch (e) {
+        // If we can't parse JSON, use the default error message
+      }
+      throw new Error(errorMsg);
+    }
+    
+    return await response.json();
+  },
+  
+  // Save resume text directly
+  saveResumeText: async (title: string, content: string, isPrimary: boolean = false): Promise<Resume> => {
+    return fetchApi<Resume>('/api/resumes/text', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        content,
+        is_primary: isPrimary
+      }),
+    });
+  },
+  
+  // Get all user's resumes
+  getUserResumes: async (): Promise<ResumeListResponse> => {
+    return fetchApi<ResumeListResponse>('/api/resumes');
+  },
+  
+  // Get primary resume
+  getPrimaryResume: async (): Promise<Resume | null> => {
+    return fetchApi<Resume | null>('/api/resumes/primary');
+  },
+  
+  // Get resume by ID
+  getResumeById: async (id: string): Promise<Resume> => {
+    return fetchApi<Resume>(`/api/resumes/${id}`);
+  },
+  
+  // Update resume
+  updateResume: async (id: string, data: Partial<Resume>): Promise<Resume> => {
+    return fetchApi<Resume>(`/api/resumes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+  
+  // Set resume as primary
+  setPrimaryResume: async (id: string): Promise<Resume> => {
+    return fetchApi<Resume>(`/api/resumes/${id}/set-primary`, {
+      method: 'PUT',
+    });
+  },
+  
+  // Delete resume
+  deleteResume: async (id: string): Promise<void> => {
+    return fetchApi<void>(`/api/resumes/${id}`, {
+      method: 'DELETE',
     });
   },
 };
