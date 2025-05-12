@@ -1,4 +1,5 @@
 import { AuthTokens, UserProfile, getStoredTokens } from './auth';
+import { LearningPath, LearningPathRequest, Niche, PathQuestion } from './models/learning-path';
 
 // Define API base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -87,6 +88,45 @@ export const authApi = {
   // Get current user profile
   getProfile: async (): Promise<UserProfile> => {
     return fetchApi<UserProfile>('/auth/me');
+  },
+};
+
+// Learning Paths API functions
+export const learningPathsApi = {
+  // Get all available niches
+  getNiches: async (): Promise<Niche[]> => {
+    return fetchApi<Niche[]>('/learning-paths/niches');
+  },
+  
+  // Get questions for tailoring learning path based on niche
+  getQuestions: async (nicheId: number): Promise<PathQuestion[]> => {
+    return fetchApi<PathQuestion[]>(`/learning-paths/questions?niche_id=${nicheId}`);
+  },
+  
+  // Generate a learning path based on user's answers
+  generatePath: async (request: LearningPathRequest): Promise<LearningPath> => {
+    return fetchApi<LearningPath>('/learning-paths/generate', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+  
+  // Save a learning path to user's account
+  savePath: async (path: LearningPath): Promise<LearningPath> => {
+    return fetchApi<LearningPath>('/learning-paths', {
+      method: 'POST',
+      body: JSON.stringify(path),
+    });
+  },
+  
+  // Get user's saved learning paths
+  getUserPaths: async (): Promise<LearningPath[]> => {
+    return fetchApi<LearningPath[]>('/learning-paths/user');
+  },
+  
+  // Get a specific learning path by ID
+  getPathById: async (pathId: string): Promise<LearningPath> => {
+    return fetchApi<LearningPath>(`/learning-paths/${pathId}`);
   },
 };
 

@@ -71,13 +71,13 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <div className="w-64 h-screen bg-white border-r flex-shrink-0 hidden md:block">
+    <div className="w-64 h-screen bg-white border-r fixed left-0 top-0 z-10 flex flex-col hidden md:flex">
       <div className="p-4 border-b">
         <Link href="/" className="flex items-center">
           <span className="text-xl font-bold gradient-text">QualifyAI</span>
         </Link>
       </div>
-      <nav className="py-6">
+      <nav className="py-6 flex-1 overflow-y-auto">
         <ul className="space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
@@ -103,7 +103,7 @@ export default function Sidebar() {
           })}
         </ul>
       </nav>
-      <div className="absolute bottom-0 p-4 w-64 border-t">
+      <div className="p-4 w-full border-t">
         <div className="flex items-center">
           <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-orange-500 flex items-center justify-center text-white font-semibold">
             JS

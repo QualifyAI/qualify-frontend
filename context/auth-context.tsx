@@ -7,7 +7,7 @@ import {
   AuthTokens, 
   UserProfile, 
   getStoredTokens, 
-  isTokenValid, 
+  hasToken,
   removeStoredTokens, 
   storeTokens 
 } from '@/lib/auth';
@@ -42,11 +42,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Check auth status on mount
   useEffect(() => {
     const checkAuth = async () => {
-      const tokens = getStoredTokens();
-      
-      if (tokens && isTokenValid(tokens.access_token)) {
+      if (hasToken()) {
         try {
-          // Get user profile
+          // Get user profile from API
           const profile = await authApi.getProfile();
           setUser(profile as UserProfile);
           setIsAuthenticated(true);

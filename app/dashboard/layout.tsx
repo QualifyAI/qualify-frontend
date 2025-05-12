@@ -13,8 +13,8 @@ export default function DashboardLayout({
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
       
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white border-b h-16 flex items-center justify-between px-6 md:px-8">
+      <div className="flex-1 flex flex-col md:ml-64">
+        <header className="bg-white border-b h-16 flex items-center justify-between px-6 md:px-8 sticky top-0 z-10">
           <div className="md:hidden">
             <Link href="/" className="flex items-center">
               <span className="text-xl font-bold gradient-text">QualifyAI</span>

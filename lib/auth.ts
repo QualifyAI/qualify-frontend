@@ -1,5 +1,3 @@
-import { jwtDecode } from 'jwt-decode';
-
 // Types
 export interface UserProfile {
   id: string;
@@ -42,35 +40,8 @@ export const removeStoredTokens = (): void => {
   }
 };
 
-// Check if token is valid and not expired
-export const isTokenValid = (token: string | undefined | null): boolean => {
-  if (!token) return false;
-  
-  try {
-    const decoded = jwtDecode(token);
-    // Check if token is expired
-    const currentTime = Date.now() / 1000;
-    return decoded.exp ? decoded.exp > currentTime : false;
-  } catch (error) {
-    return false;
-  }
-};
-
-// Get user from token
-export const getUserFromToken = (token: string): UserProfile | null => {
-  try {
-    const decoded = jwtDecode<{ sub: string }>(token);
-    // We only get the subject from the token, not the full user profile
-    // For a real app, you might want to fetch the user profile from the API
-    return {
-      id: decoded.sub,
-      email: '',  // This would be retrieved from the API in a real app
-      full_name: '',
-      is_active: true,
-      created_at: '',
-      updated_at: ''
-    };
-  } catch (error) {
-    return null;
-  }
+// Check if token exists (simplified from previous implementation)
+export const hasToken = (): boolean => {
+  const tokens = getStoredTokens();
+  return !!tokens?.access_token;
 }; 
