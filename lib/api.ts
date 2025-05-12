@@ -1,5 +1,12 @@
 import { AuthTokens, UserProfile, getStoredTokens } from './auth';
 import { LearningPath, LearningPathRequest, Niche, PathQuestion } from './models/learning-path';
+import { 
+  SkillGapAnalysis, 
+  SkillGapAnalysisRequest, 
+  ResumeAnalysisResult,
+  ProjectRecommendation,
+  SkillLearningResources
+} from './models/skill-gap';
 
 // Define API base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -127,6 +134,84 @@ export const learningPathsApi = {
   // Get a specific learning path by ID
   getPathById: async (pathId: string): Promise<LearningPath> => {
     return fetchApi<LearningPath>(`/learning-paths/${pathId}`);
+  },
+};
+
+// Skill Gap Analysis API functions
+export const skillGapApi = {
+  // Analyze resume and job description to identify skill gaps
+  analyzeSkills: async (data: SkillGapAnalysisRequest): Promise<SkillGapAnalysis> => {
+    // For file uploads, we need to use FormData
+    const formData = new FormData();
+    
+    if (data.resumeFile) {
+      formData.append('resume_file', data.resumeFile);
+    }
+    
+    if (data.resumeText) {
+      formData.append('resume_text', data.resumeText);
+    }
+    
+    if (data.githubUrl) {
+      formData.append('github_url', data.githubUrl);
+    }
+    
+    if (data.jobDescription) {
+      formData.append('job_description', data.jobDescription);
+    }
+    
+    if (data.jobPostingUrl) {
+      formData.append('job_posting_url', data.jobPostingUrl);
+    }
+    
+    return fetchApi<SkillGapAnalysis>('/skill-gap/analyze', {
+      method: 'POST',
+      headers: {
+        // Let the browser set the appropriate Content-Type for FormData
+        'Content-Type': undefined as any,
+      },
+      body: formData,
+    });
+  },
+  
+  // Get skill gap analysis history
+  getAnalysisHistory: async (): Promise<SkillGapAnalysis[]> => {
+    return fetchApi<SkillGapAnalysis[]>('/skill-gap/history');
+  },
+  
+  // Get a specific analysis by ID
+  getAnalysisById: async (analysisId: string): Promise<SkillGapAnalysis> => {
+    return fetchApi<SkillGapAnalysis>(`/skill-gap/history/${analysisId}`);
+  },
+  
+  // Generate project recommendations based on missing skills
+  getProjectRecommendations: async (skills: string[]): Promise<ProjectRecommendation[]> => {
+    return fetchApi<ProjectRecommendation[]>('/skill-gap/projects', {
+      method: 'POST',
+      body: JSON.stringify({ skills }),
+    });
+  },
+  
+  // Get learning resources for specific skills
+  getLearningResources: async (skills: string[]): Promise<SkillLearningResources[]> => {
+    return fetchApi<SkillLearningResources[]>('/skill-gap/resources', {
+      method: 'POST',
+      body: JSON.stringify({ skills }),
+    });
+  },
+  
+  // Analyze resume for ATS optimization (part of Resume Enhancement)
+  analyzeResume: async (resumeFile: File): Promise<ResumeAnalysisResult> => {
+    const formData = new FormData();
+    formData.append('resume_file', resumeFile);
+    
+    return fetchApi<ResumeAnalysisResult>('/resume/analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': undefined as any,
+      },
+      body: formData,
+    });
   },
 };
 
