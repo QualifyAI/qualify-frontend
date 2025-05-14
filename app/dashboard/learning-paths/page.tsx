@@ -458,7 +458,7 @@ export default function LearningPathsPage() {
 
   // Render interactive question flow
   const renderQuestionFlow = () => {
-    if (loading || questions.length === 0) {
+    if (loading) {
       return (
         <div className="flex justify-center items-center h-64">
           <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
