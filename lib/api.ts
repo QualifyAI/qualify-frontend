@@ -3,7 +3,6 @@ import { LearningPath, LearningPathRequest, Niche, PathQuestion } from './models
 import { 
   SkillGapAnalysis, 
   SkillGapAnalysisRequest, 
-  ResumeAnalysisResult,
   ProjectRecommendation,
   SkillLearningResources
 } from './models/skill-gap';
@@ -22,6 +21,158 @@ export interface Resume {
 export interface ResumeListResponse {
   resumes: Resume[];
   total: number;
+}
+
+// Resume analysis types
+export interface SectionAnalysis {
+  score: number;
+  feedback: string;
+  suggestions: string[];
+  beforeExample?: string;
+  afterExample?: string;
+  bulletPoints?: {
+    before: string;
+    after: string;
+  }[];
+}
+
+export interface ContentIssue {
+  type: string;
+  instances: number;
+  examples: string[];
+  recommendations: string[];
+}
+
+export interface ATSIssue {
+  type: string;
+  issue: string;
+  impact: string;
+  solution: string;
+}
+
+export interface KeywordAnalysis {
+  matched: string[];
+  missing: string[];
+  recommendations: string[];
+}
+
+export interface IndustryBenchmark {
+  overallRanking: string;
+  topAreaForImprovement: string;
+  competitiveEdge: string;
+}
+
+export interface QuantifyImpactScore {
+  score: number;
+  quantifiedBullets: string[];
+  nonQuantifiedBullets: string[];
+  improvementSuggestions: string[];
+}
+
+export interface ActionVerbScore {
+  score: number;
+  strongVerbs: string[];
+  weakVerbs: string[];
+  recommendedAlternatives: Record<string, string[]>;
+}
+
+export interface TenseConsistencyScore {
+  score: number;
+  inconsistencies: string[];
+  recommendations: string[];
+}
+
+export interface AccomplishmentScore {
+  score: number;
+  responsibilityStatements: string[];
+  accomplishmentStatements: string[];
+  transformationSuggestions: Record<string, string>;
+}
+
+export interface ImpactScore {
+  quantifyImpact: QuantifyImpactScore;
+  actionVerbs: ActionVerbScore;
+  tenseConsistency: TenseConsistencyScore;
+  accomplishmentOrientation: AccomplishmentScore;
+  overallScore: number;
+}
+
+export interface BrevityScore {
+  bulletPointUsage: number;
+  bulletPointLength: number;
+  fillerWordUsage: number;
+  pageDensity: number;
+  overallScore: number;
+  suggestions: string[];
+}
+
+export interface StyleScore {
+  buzzwordUsage: number;
+  dateFormatting: number;
+  contactDetails: number;
+  readability: number;
+  personalPronouns: number;
+  activeVoice: number;
+  bulletConsistency: number;
+  overallScore: number;
+  suggestions: string[];
+}
+
+export interface SectionScore {
+  experienceSections: number;
+  educationSection: number;
+  skillsSection: number;
+  unnecessarySections: string[];
+  overallScore: number;
+  suggestions: string[];
+}
+
+export interface SoftSkillsScore {
+  communication: number;
+  analyticalThinking: number;
+  teamwork: number;
+  overallScore: number;
+  suggestions: string[];
+}
+
+export interface ATSScore {
+  keywordRelevance: number;
+  jobMatch: number;
+  formatCompatibility: number;
+  overallScore: number;
+  suggestions: string[];
+}
+
+export interface ResumeAnalysisResult {
+  impact: ImpactScore;
+  brevity: BrevityScore;
+  style: StyleScore;
+  sections: SectionScore;
+  softSkills: SoftSkillsScore;
+  ats: ATSScore;
+  
+  // Summary scores
+  atsScore: number;
+  formatScore: number;
+  contentScore: number;
+  overallScore: number;
+  
+  // Target information
+  industry: string;
+  jobTitle: string;
+  
+  // Section analysis
+  sectionAnalysis: Record<string, SectionAnalysis>;
+  atsIssues: ATSIssue[];
+  keywordMatch: KeywordAnalysis;
+  contentIssues: ContentIssue[];
+  industryBenchmark: IndustryBenchmark;
+}
+
+export interface OptimizedResumeResult {
+  markdown: string;
+  changesSummary: string[];
+  improvementScore: number;
 }
 
 // Define API base URL
@@ -106,7 +257,7 @@ async function fetchApi<T>(
     }
     
     // Parse JSON response
-    const data = await response.json();
+    const data = await response.json();                       
     return data as T;
   } catch (error) {
     console.error(`API Error for ${endpoint}:`, error);
@@ -285,17 +436,117 @@ export const skillGapApi = {
   },
   
   // Analyze resume for ATS optimization (part of Resume Enhancement)
-  analyzeResume: async (resumeFile: File): Promise<ResumeAnalysisResult> => {
+  analyzeResume: async (
+    resumeFile: File | null, 
+    resumeId: string | null, 
+    jobTitle: string, 
+    industry: string
+  ): Promise<ResumeAnalysisResult> => {
     const formData = new FormData();
-    formData.append('resume_file', resumeFile);
     
-    return fetchApi<ResumeAnalysisResult>('/resume/analyze', {
-      method: 'POST',
-      headers: {
-        'Content-Type': undefined as any,
-      },
-      body: formData,
-    });
+    if (resumeFile) {
+      formData.append('resume_file', resumeFile);
+    }
+    
+    if (resumeId) {
+      formData.append('resume_id', resumeId);
+    }
+    
+    formData.append('job_title', jobTitle);
+    formData.append('industry', industry);
+    
+    // Get the stored auth token
+    const tokens = getStoredTokens();
+    const authHeader = tokens?.access_token ? `Bearer ${tokens.access_token}` : '';
+    
+    // Make a direct fetch call instead of using fetchApi to avoid header issues with FormData
+    const url = `${API_BASE_URL}/resume/analyze`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        let errorMsg = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.detail || errorMsg;
+        } catch (e) {
+          // If we can't parse JSON, use the default error message
+        }
+        throw new Error(errorMsg);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('API Error for resume analysis:', error);
+      throw error;
+    }
+  },
+  
+  // Optimize resume based on analysis
+  optimizeResume: async (
+    resumeFile: File | null, 
+    resumeId: string | null, 
+    jobTitle: string, 
+    industry: string,
+    analysisResult?: ResumeAnalysisResult
+  ): Promise<OptimizedResumeResult> => {
+    const formData = new FormData();
+    
+    if (resumeFile) {
+      formData.append('resume_file', resumeFile);
+    }
+    
+    if (resumeId) {
+      formData.append('resume_id', resumeId);
+    }
+    
+    formData.append('job_title', jobTitle);
+    formData.append('industry', industry);
+    
+    // Include analysis result if available
+    if (analysisResult) {
+      formData.append('analysis_result', JSON.stringify(analysisResult));
+    }
+    
+    // Get the stored auth token
+    const tokens = getStoredTokens();
+    const authHeader = tokens?.access_token ? `Bearer ${tokens.access_token}` : '';
+    
+    // Make a direct fetch call
+    const url = `${API_BASE_URL}/resume/optimize`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader
+        },
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        let errorMsg = `HTTP error! Status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.detail || errorMsg;
+        } catch (e) {
+          // If we can't parse JSON, use the default error message
+        }
+        throw new Error(errorMsg);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('API Error for resume optimization:', error);
+      throw error;
+    }
   },
 };
 

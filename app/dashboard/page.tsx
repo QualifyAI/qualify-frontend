@@ -177,13 +177,13 @@ export default function Dashboard() {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
+            <div className="space-y-4">
                 {skillAnalyses.slice(0, 3).map((analysis, i) => (
                   <div key={analysis.id} className="flex items-center p-3 bg-gray-50 rounded-lg">
-                    <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold">
+                  <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold">
                       {analysis.job_title.charAt(0)}
-                    </div>
-                    <div className="ml-4 flex-grow">
+                  </div>
+                  <div className="ml-4 flex-grow">
                       <p className="font-medium">{analysis.job_title}</p>
                       <p className="text-xs text-gray-500">
                         {new Date(analysis.createdAt || new Date()).toLocaleDateString()}
@@ -202,7 +202,7 @@ export default function Dashboard() {
                     </Link>
                   </div>
                 )}
-              </div>
+                </div>
             )}
           </CardContent>
         </Card>

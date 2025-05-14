@@ -1,222 +1,224 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { resumeApi, skillGapApi } from '@/lib/api';
+import { ResumeAnalysisResult, OptimizedResumeResult } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { hasToken } from '@/lib/auth';
+import { Resume } from '@/lib/api';
+import ReactMarkdown from 'react-markdown';
 
 // Enum for tracking the analysis steps
 enum AnalysisStep {
   UPLOAD = 'upload',
   ANALYZING = 'analyzing',
   RESULTS = 'results',
+  OPTIMIZED = 'optimized',
 }
 
 export default function ResumeEnhancementPage() {
+  const router = useRouter();
   const [step, setStep] = useState<AnalysisStep>(AnalysisStep.UPLOAD);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [jobTitle, setJobTitle] = useState('');
-  const [industry, setIndustry] = useState('');
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<ResumeAnalysisResult | null>(null);
+  const [optimizedResume, setOptimizedResume] = useState<OptimizedResumeResult | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [error, setError] = useState<string | null>(null);
+  const [userResumes, setUserResumes] = useState<Resume[]>([]);
+  const [loadingResumes, setLoadingResumes] = useState(false);
+  
+  // File input ref for resetting
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Load user's resumes when the component mounts
+  useEffect(() => {
+    const fetchResumes = async () => {
+      if (!hasToken()) {
+        router.push('/login');
+        return;
+      }
+      
+      setLoadingResumes(true);
+      try {
+        const response = await resumeApi.getUserResumes();
+        setUserResumes(response.resumes);
+      } catch (err) {
+        console.error("Failed to fetch resumes:", err);
+        setError("Failed to load your resumes");
+      } finally {
+        setLoadingResumes(false);
+      }
+    };
+    
+    fetchResumes();
+  }, [router]);
 
   // Handle file change
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setResumeFile(e.target.files[0]);
+      setSelectedResume(null); // Clear selected resume when file is uploaded
+    }
+  };
+
+  // Reset file input
+  const resetFileInput = () => {
+    setResumeFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle resume selection
+  const handleResumeSelect = (resumeId: string) => {
+    const resume = userResumes.find(r => r.id === resumeId);
+    if (resume) {
+      setSelectedResume(resume);
+      setResumeFile(null); // Clear uploaded file when resume is selected
+      resetFileInput();
     }
   };
 
   // Start analysis
   const handleStartAnalysis = () => {
     // Validate inputs
-    if (!resumeFile) {
-      alert('Please upload your resume');
+    if (!resumeFile && !selectedResume) {
+      setError('Please upload your resume or select an existing one');
       return;
     }
 
     // Show loading state
     setStep(AnalysisStep.ANALYZING);
 
-    // Simulate API call with a timeout
-    setTimeout(() => {
+    // Default job title and industry since they're still required by the backend
+    const defaultJobTitle = "General Position";
+    const defaultIndustry = "Technology";
+
+    // Call the API to analyze the resume
+    skillGapApi.analyzeResume(
+      resumeFile, 
+      selectedResume?.id || null,
+      defaultJobTitle,
+      defaultIndustry
+    )
+      .then((result: ResumeAnalysisResult) => {
+        setAnalysisResult(result);
       setStep(AnalysisStep.RESULTS);
-      // In a real app, we would fetch the actual results from the API
-      setAnalysisResult(mockAnalysisData);
-    }, 3000);
+      })
+      .catch((error: Error) => {
+        console.error('Resume analysis failed:', error);
+        setError(`Analysis failed: ${error.message || 'Unknown error'}`);
+        setStep(AnalysisStep.UPLOAD);
+      });
+  };
+
+  // Generate optimized resume
+  const handleOptimizeResume = () => {
+    if (!analysisResult) return;
+    
+    setStep(AnalysisStep.ANALYZING);
+    
+    // Use the same default values for job title and industry
+    const defaultJobTitle = "General Position";
+    const defaultIndustry = "Technology";
+    
+    skillGapApi.optimizeResume(
+      resumeFile,
+      selectedResume?.id || null,
+      defaultJobTitle,
+      defaultIndustry,
+      analysisResult
+    )
+      .then((result: OptimizedResumeResult) => {
+        setOptimizedResume(result);
+        setStep(AnalysisStep.OPTIMIZED);
+      })
+      .catch((error: Error) => {
+        console.error('Resume optimization failed:', error);
+        setError(`Optimization failed: ${error.message || 'Unknown error'}`);
+        setStep(AnalysisStep.RESULTS);
+      });
   };
 
   // Reset and start over
   const handleReset = () => {
     setStep(AnalysisStep.UPLOAD);
     setResumeFile(null);
-    setJobTitle('');
-    setIndustry('');
+    setSelectedResume(null);
+    setAnalysisResult(null);
+    setOptimizedResume(null);
+    setError(null);
+    resetFileInput();
   };
 
   return (
     <div>
+      {error && (
+        <div className="max-w-3xl mx-auto mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+          {error}
+          <button 
+            className="float-right font-bold"
+            onClick={() => setError(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
+      
       {step === AnalysisStep.UPLOAD && <ResumeUploadForm 
         resumeFile={resumeFile}
+        fileInputRef={fileInputRef}
         handleFileChange={handleFileChange}
-        jobTitle={jobTitle}
-        setJobTitle={setJobTitle}
-        industry={industry}
-        setIndustry={setIndustry}
+        resetFileInput={resetFileInput}
+        selectedResume={selectedResume}
+        userResumes={userResumes}
+        handleResumeSelect={handleResumeSelect}
+        loadingResumes={loadingResumes}
         handleStartAnalysis={handleStartAnalysis}
       />}
       {step === AnalysisStep.ANALYZING && <AnalyzingView />}
-      {step === AnalysisStep.RESULTS && <ResultsView 
+      {step === AnalysisStep.RESULTS && analysisResult && <ResultsView 
         result={analysisResult}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        onReset={handleReset}
+        onOptimize={handleOptimizeResume}
+      />}
+      {step === AnalysisStep.OPTIMIZED && optimizedResume && <OptimizedResumeView
+        optimizedResume={optimizedResume}
+        onBack={() => setStep(AnalysisStep.RESULTS)}
         onReset={handleReset}
       />}
     </div>
   );
 }
 
-// Mock data for the resume analysis
-const mockAnalysisData = {
-  atsScore: 76,
-  formatScore: 82,
-  contentScore: 68,
-  overallScore: 74,
-  industry: "Technology",
-  jobTitle: "Frontend Developer",
-  sections: {
-    header: {
-      score: 85,
-      feedback: "Your contact information is well-structured and complete.",
-      suggestions: [
-        "Consider adding your LinkedIn profile URL",
-        "Remove your physical address to save space"
-      ]
-    },
-    summary: {
-      score: 65,
-      feedback: "Your professional summary is too generic and needs more impact.",
-      suggestions: [
-        "Add specific achievements with metrics",
-        "Tailor your summary more closely to the job requirements",
-        "Keep it concise at 3-4 lines maximum"
-      ],
-      beforeExample: "Experienced web developer with skills in frontend and backend technologies.",
-      afterExample: "Results-driven Frontend Developer with 4+ years optimizing user experiences through React and TypeScript. Delivered a 40% performance improvement for an e-commerce platform serving 2M+ monthly users."
-    },
-    experience: {
-      score: 72,
-      feedback: "Your work experience section has good structure but lacks impact statements.",
-      suggestions: [
-        "Start each bullet with strong action verbs",
-        "Include measurable achievements (%, $, time saved)",
-        "Focus on results, not just responsibilities",
-        "Remove outdated experience (>10 years old)"
-      ],
-      bulletPoints: [
-        {
-          before: "Worked on the company website using React",
-          after: "Redesigned company e-commerce platform with React, increasing conversion rates by 28% and reducing load time by 2.5 seconds"
-        },
-        {
-          before: "Managed a team of developers",
-          after: "Led a cross-functional team of 5 developers to deliver 3 major product releases, reducing bug reports by 40% through improved QA processes"
-        }
-      ]
-    },
-    skills: {
-      score: 78,
-      feedback: "Your skills section is thorough but could be better organized.",
-      suggestions: [
-        "Group skills by category (Technical, Soft, Tools)",
-        "Place most relevant skills first",
-        "Remove outdated or basic skills (e.g., MS Word)",
-        "Add proficiency levels for technical skills"
-      ]
-    },
-    education: {
-      score: 90,
-      feedback: "Your education section is well-formatted.",
-      suggestions: [
-        "Consider moving education below experience if you have >2 years of work experience",
-        "Add relevant coursework or projects if you're a recent graduate"
-      ]
-    },
-    projects: {
-      score: 65,
-      feedback: "Your projects section needs more detail and structure.",
-      suggestions: [
-        "Include GitHub links for technical projects",
-        "Describe the technologies used for each project",
-        "Explain your specific role and contributions",
-        "Highlight the business impact or technical challenges solved"
-      ]
-    }
-  },
-  atsIssues: [
-    {
-      type: "Formatting",
-      issue: "Complex tables detected",
-      impact: "High",
-      solution: "Replace tables with simple bullet points for better ATS parsing"
-    },
-    {
-      type: "Fonts",
-      issue: "Multiple font types detected",
-      impact: "Medium",
-      solution: "Standardize to a single, ATS-friendly font like Arial or Calibri"
-    },
-    {
-      type: "Headers/Footers",
-      issue: "Content in header area",
-      impact: "High",
-      solution: "Move all content from headers/footers into the main document body"
-    }
-  ],
-  keywordMatch: {
-    matched: ["React", "TypeScript", "Frontend", "JavaScript", "CSS", "HTML5", "Responsive Design"],
-    missing: ["Next.js", "Redux", "Unit Testing", "CI/CD", "Webpack"],
-    recommendations: ["Add missing keywords where applicable", "Ensure keywords appear in context, not just in lists"]
-  },
-  contentIssues: [
-    {
-      type: "Passive Voice",
-      instances: 6,
-      examples: ["The project was completed by me", "Code reviews were performed weekly"],
-      recommendations: ["Use active voice: 'I completed the project'", "Use action verbs: 'Performed weekly code reviews'"]
-    },
-    {
-      type: "Vague Statements",
-      instances: 4,
-      examples: ["Helped improve the website", "Worked on various projects"],
-      recommendations: ["Be specific: 'Increased website conversion rate by 15%'", "Name projects and your specific contributions"]
-    }
-  ],
-  industryBenchmark: {
-    overallRanking: "65th percentile",
-    topAreaForImprovement: "Impact Statements",
-    competitiveEdge: "Technical Skills Section"
-  }
-};
-
 // Component for the upload form
 function ResumeUploadForm({ 
   resumeFile, 
+  fileInputRef,
   handleFileChange, 
-  jobTitle, 
-  setJobTitle, 
-  industry, 
-  setIndustry, 
+  resetFileInput,
+  selectedResume, 
+  userResumes,
+  handleResumeSelect,
+  loadingResumes,
   handleStartAnalysis 
 }: { 
   resumeFile: File | null;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  jobTitle: string;
-  setJobTitle: (value: string) => void;
-  industry: string;
-  setIndustry: (value: string) => void;
+  resetFileInput: () => void;
+  selectedResume: Resume | null;
+  userResumes: Resume[];
+  handleResumeSelect: (resumeId: string) => void;
+  loadingResumes: boolean;
   handleStartAnalysis: () => void;
 }) {
   return (
@@ -235,7 +237,54 @@ function ResumeUploadForm({
             We'll analyze your resume for ATS compatibility, content quality, and structure
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Stored Resumes Section */}
+          {userResumes.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="stored-resume">Select from your saved resumes</Label>
+              <div className="relative">
+                <select
+                  id="stored-resume"
+                  value={selectedResume?.id || ""}
+                  onChange={(e) => handleResumeSelect(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 appearance-none"
+                  disabled={loadingResumes}
+                >
+                  <option value="">Select a saved resume</option>
+                  {userResumes.map((resume) => (
+                    <option key={resume.id} value={resume.id}>
+                      {resume.title} {resume.is_primary ? "(Primary)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              {loadingResumes && (
+                <div className="text-sm text-gray-500">Loading your resumes...</div>
+              )}
+            </div>
+          )}
+
+          {userResumes.length > 0 && (
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t"></span>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  OR
+                </span>
+              </div>
+            </div>
+          )}
+          
+          {/* Upload Resume File */}
+          <div className="space-y-2">
+            <Label htmlFor="resume-upload">Upload a new resume</Label>
           <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
             {resumeFile ? (
               <div className="flex flex-col items-center">
@@ -250,7 +299,7 @@ function ResumeUploadForm({
                   variant="outline" 
                   size="sm" 
                   className="mt-2"
-                  onClick={() => handleFileChange({ target: { files: null } } as any)}
+                    onClick={resetFileInput}
                 >
                   Remove
                 </Button>
@@ -271,6 +320,7 @@ function ResumeUploadForm({
                       name="resume-upload"
                       type="file"
                       className="sr-only"
+                        ref={fileInputRef}
                       onChange={handleFileChange}
                       accept=".pdf,.doc,.docx"
                     />
@@ -280,55 +330,72 @@ function ResumeUploadForm({
                 <p className="text-xs text-gray-500 mt-2">PDF, DOC, or DOCX up to 5MB</p>
               </>
             )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Job Details</CardTitle>
-          <CardDescription>
-            Help us tailor the analysis to your target job
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="job-title">Target Job Title</Label>
-              <Input
-                id="job-title"
-                type="text"
-                placeholder="e.g. Frontend Developer, Product Manager"
-                value={jobTitle}
-                onChange={(e) => setJobTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="industry">Industry</Label>
-              <select
-                id="industry"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={industry}
-                onChange={(e) => setIndustry(e.target.value)}
-              >
-                <option value="">Select an industry</option>
-                <option value="Technology">Technology</option>
-                <option value="Healthcare">Healthcare</option>
-                <option value="Finance">Finance</option>
-                <option value="Education">Education</option>
-                <option value="Marketing">Marketing</option>
-                <option value="Manufacturing">Manufacturing</option>
-                <option value="Retail">Retail</option>
-                <option value="Consulting">Consulting</option>
-                <option value="Other">Other</option>
-              </select>
             </div>
           </div>
         </CardContent>
         <CardFooter className="flex justify-end">
-          <Button onClick={handleStartAnalysis}>
+          <Button onClick={handleStartAnalysis} disabled={!resumeFile && !selectedResume}>
             Analyze Resume
           </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
+
+// Component for the optimized resume view
+function OptimizedResumeView({ 
+  optimizedResume, 
+  onBack, 
+  onReset 
+}: { 
+  optimizedResume: OptimizedResumeResult;
+  onBack: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">Optimized Resume</h1>
+        <p className="text-gray-600">
+          Your resume has been professionally enhanced based on our analysis.
+        </p>
+      </div>
+
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Improved Resume</CardTitle>
+          <CardDescription>
+            Estimated improvement: +{optimizedResume.improvementScore} points
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="p-6 bg-white border rounded-lg shadow-sm">
+            <div className="prose max-w-none">
+              <ReactMarkdown>{optimizedResume.markdown}</ReactMarkdown>
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-4">
+          <div className="w-full bg-blue-50 p-4 rounded-lg">
+            <h3 className="font-medium text-blue-800 mb-2">Changes Made:</h3>
+            <ul className="list-disc list-inside space-y-1 text-sm text-blue-700">
+              {optimizedResume.changesSummary.map((change, index) => (
+                <li key={index}>{change}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 w-full justify-end">
+            <Button variant="outline" onClick={onBack}>
+              Back to Analysis
+          </Button>
+            <Button onClick={() => {}}>
+              Download Resume
+            </Button>
+            <Button variant="ghost" onClick={onReset}>
+              Start Over
+            </Button>
+          </div>
         </CardFooter>
       </Card>
     </div>
@@ -387,13 +454,26 @@ function ResultsView({
   result, 
   activeTab,
   setActiveTab,
-  onReset 
+  onReset,
+  onOptimize
 }: { 
-  result: any;
+  result: ResumeAnalysisResult;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onReset: () => void;
+  onOptimize: () => void;
 }) {
+  // Create a type-safe accessor for section analysis
+  const getSectionAnalysis = (sectionName: string): any => {
+    if (result.sectionAnalysis && result.sectionAnalysis[sectionName]) {
+      return result.sectionAnalysis[sectionName];
+    }
+    return null;
+  };
+  
+  const summarySection = getSectionAnalysis('summary');
+  const experienceSection = getSectionAnalysis('experience');
+  
   return (
     <div className="pb-16">
       <div className="relative bg-gradient-to-r from-blue-600 to-indigo-700 py-16 px-4 mb-10 rounded-xl text-white">
@@ -516,6 +596,7 @@ function ResultsView({
                   
                   <div className="pt-4 border-t">
                     <h3 className="text-lg font-semibold mb-4">Industry Benchmark</h3>
+                    {result.industryBenchmark ? (
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <p className="text-blue-800 mb-2">
                         <span className="font-bold">Your Resume vs. Others in {result.industry}:</span> {result.industryBenchmark.overallRanking}
@@ -527,6 +608,11 @@ function ResultsView({
                         <span className="font-bold">Your Competitive Edge:</span> {result.industryBenchmark.competitiveEdge}
                       </p>
                     </div>
+                    ) : (
+                      <div className="bg-gray-50 p-4 rounded-lg text-gray-600">
+                        <p>Industry benchmark data is not available.</p>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="pt-4 border-t">
@@ -535,30 +621,30 @@ function ResultsView({
                       <div>
                         <h4 className="text-sm font-semibold text-gray-700 mb-2">Matched Keywords</h4>
                         <div className="flex flex-wrap gap-2">
-                          {result.keywordMatch.matched.map((keyword: string, index: number) => (
+                          {result.keywordMatch?.matched?.map((keyword: string, index: number) => (
                             <div key={index} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
                               {keyword}
                             </div>
-                          ))}
+                          )) || <div className="text-gray-500 text-xs">No matched keywords found</div>}
                         </div>
                       </div>
                       <div>
                         <h4 className="text-sm font-semibold text-gray-700 mb-2">Missing Keywords</h4>
                         <div className="flex flex-wrap gap-2">
-                          {result.keywordMatch.missing.map((keyword: string, index: number) => (
+                          {result.keywordMatch?.missing?.map((keyword: string, index: number) => (
                             <div key={index} className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">
                               {keyword}
                             </div>
-                          ))}
+                          )) || <div className="text-gray-500 text-xs">No missing keywords found</div>}
                         </div>
                       </div>
                     </div>
                     <div className="mt-4 text-sm text-gray-600">
                       <p className="font-medium">Recommendations:</p>
                       <ul className="list-disc list-inside space-y-1 mt-1">
-                        {result.keywordMatch.recommendations.map((rec: string, index: number) => (
+                        {result.keywordMatch?.recommendations?.map((rec: string, index: number) => (
                           <li key={index}>{rec}</li>
-                        ))}
+                        )) || <li className="text-gray-500">No recommendations available</li>}
                       </ul>
                     </div>
                   </div>
@@ -575,7 +661,7 @@ function ResultsView({
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {result.atsIssues.map((issue: any, index: number) => (
+                  {result.atsIssues?.map((issue: any, index: number) => (
                     <div key={index} className="border-b pb-6 last:border-b-0 last:pb-0">
                       <div className="flex justify-between items-start mb-2">
                         <h3 className="font-semibold text-gray-900">{issue.type}</h3>
@@ -595,6 +681,11 @@ function ResultsView({
                       </div>
                     </div>
                   ))}
+                  {(!result.atsIssues || result.atsIssues.length === 0) && (
+                    <div className="text-center py-10">
+                      <p className="text-gray-500">No ATS issues detected.</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -608,7 +699,7 @@ function ResultsView({
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {result.contentIssues.map((issue: any, index: number) => (
+                  {result.contentIssues?.map((issue: any, index: number) => (
                     <div key={index} className="border-b pb-6 last:border-b-0 last:pb-0">
                       <div className="flex justify-between items-start mb-2">
                         <h3 className="font-semibold text-gray-900">{issue.type}</h3>
@@ -619,21 +710,26 @@ function ResultsView({
                       <div className="bg-gray-50 p-4 rounded-lg mb-4">
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Examples Found:</h4>
                         <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                          {issue.examples.map((example: string, i: number) => (
+                          {issue.examples?.map((example: string, i: number) => (
                             <li key={i}><span className="text-red-500 font-mono">{example}</span></li>
-                          ))}
+                          )) || <li className="text-gray-500">No examples available</li>}
                         </ul>
                       </div>
                       <div>
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Recommendations:</h4>
                         <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                          {issue.recommendations.map((rec: string, i: number) => (
+                          {issue.recommendations?.map((rec: string, i: number) => (
                             <li key={i}>{rec}</li>
-                          ))}
+                          )) || <li className="text-gray-500">No recommendations available</li>}
                         </ul>
                       </div>
                     </div>
                   ))}
+                  {(!result.contentIssues || result.contentIssues.length === 0) && (
+                    <div className="text-center py-10">
+                      <p className="text-gray-500">No content issues detected.</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -643,7 +739,7 @@ function ResultsView({
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Section-by-Section Feedback</h2>
               <div className="space-y-6">
-                {Object.entries(result.sections).map(([key, section]: [string, any]) => (
+                {result.sectionAnalysis && Object.entries(result.sectionAnalysis).map(([key, section]: [string, any]) => (
                   <Card key={key} className="overflow-hidden">
                     <CardContent className="p-0">
                       <div className={`px-6 py-4 border-b flex justify-between items-center ${
@@ -689,14 +785,22 @@ function ResultsView({
                         <p className="text-gray-700 mb-4">{section.feedback}</p>
                         <h4 className="text-sm font-medium text-gray-700 mb-2">Suggestions:</h4>
                         <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                          {section.suggestions.map((suggestion: string, index: number) => (
+                          {section.suggestions && section.suggestions.map((suggestion: string, index: number) => (
                             <li key={index}>{suggestion}</li>
                           ))}
+                          {(!section.suggestions || section.suggestions.length === 0) && 
+                            <li className="text-gray-500">No suggestions available</li>
+                          }
                         </ul>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
+                {(!result.sectionAnalysis || Object.keys(result.sectionAnalysis).length === 0) && (
+                  <div className="text-center py-10">
+                    <p className="text-gray-500">No section information available.</p>
+                  </div>
+                )}
               </div>
             </div>
           </TabsContent>
@@ -709,27 +813,27 @@ function ResultsView({
               </CardHeader>
               <CardContent>
                 <div className="space-y-8">
-                  {result.sections.summary.beforeExample && (
+                  {summarySection?.beforeExample && (
                     <div className="space-y-4">
                       <h3 className="font-semibold text-gray-900">Professional Summary</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                           <div className="text-sm font-medium text-gray-500 mb-2">Before:</div>
-                          <div className="text-gray-700">{result.sections.summary.beforeExample}</div>
+                          <div className="text-gray-700">{summarySection.beforeExample}</div>
                         </div>
                         <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                           <div className="text-sm font-medium text-green-600 mb-2">After:</div>
-                          <div className="text-gray-700">{result.sections.summary.afterExample}</div>
+                          <div className="text-gray-700">{summarySection.afterExample}</div>
                         </div>
                       </div>
                     </div>
                   )}
                   
-                  {result.sections.experience.bulletPoints && (
+                  {experienceSection?.bulletPoints && (
                     <div className="space-y-4 pt-6 border-t">
                       <h3 className="font-semibold text-gray-900">Work Experience Bullet Points</h3>
                       <div className="space-y-6">
-                        {result.sections.experience.bulletPoints.map((bullet: any, index: number) => (
+                        {experienceSection.bulletPoints.map((bullet: any, index: number) => (
                           <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                               <div className="text-sm font-medium text-gray-500 mb-2">Before:</div>
@@ -757,7 +861,7 @@ function ResultsView({
             </svg>
             Download Report
           </Button>
-          <Button size="lg" className="gap-2">
+          <Button size="lg" className="gap-2" onClick={onOptimize}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
             </svg>

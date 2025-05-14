@@ -64,15 +64,7 @@ export interface SkillGapAnalysisRequest {
   githubUrl?: string;
 }
 
-// Resume analysis result (ATS optimization)
-export interface ResumeAnalysisResult {
-  ats_score: number;
-  keyword_match: number;
-  formatting_score: number;
-  content_score: number;
-  suggestions: Record<string, string[]>;
-  highlighted_resume: string;
-}
+
 
 // Learning resources for a specific skill
 export interface SkillLearningResources {
