@@ -50,17 +50,20 @@ export default function SkillGapPage() {
       return;
     }
     
-    // Load analysis history
+    // Load analysis history and resume list when component mounts
     if (isAuthenticated) {
       fetchAnalysisHistory();
       fetchUserResumes();
     }
-  }, [isAuthenticated, router, activeTab]);
+  }, [isAuthenticated, router]);
   
   // Tab change handler to fetch history when tab changes
   useEffect(() => {
     if (activeTab === 'history' && isAuthenticated) {
       fetchAnalysisHistory();
+    }
+    if (activeTab === 'new' && isAuthenticated) {
+      fetchUserResumes();
     }
   }, [activeTab, isAuthenticated]);
 
@@ -146,6 +149,15 @@ export default function SkillGapPage() {
     if (!resumeFile && !resumeText && !selectedResumeId) {
       setError('Please upload a resume file, paste your resume text, or select a stored resume');
       return false;
+    }
+    
+    // Verify the selected resume ID exists in the current resume list
+    if (selectedResumeId) {
+      const resumeExists = storedResumes.some(resume => resume.id === selectedResumeId);
+      if (!resumeExists) {
+        setError('The selected resume no longer exists. Please choose another resume or refresh the page.');
+        return false;
+      }
     }
     
     // Check if job info is provided (either description or URL)

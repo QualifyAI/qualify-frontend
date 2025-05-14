@@ -158,17 +158,17 @@ export const authApi = {
 export const learningPathsApi = {
   // Get all available niches
   getNiches: async (): Promise<Niche[]> => {
-    return await fetchApi<Niche[]>('/api/learning-path/niches');
+    return await fetchApi<Niche[]>('/learning-path/niches');
   },
   
   // Get questions for tailoring learning path based on niche
   getQuestions: async (nicheId: number): Promise<PathQuestion[]> => {
-    return await fetchApi<PathQuestion[]>(`/api/learning-path/questions?nicheId=${nicheId}`);
+    return await fetchApi<PathQuestion[]>(`/learning-path/questions?nicheId=${nicheId}`);
   },
   
   // Generate a learning path based on user's answers
   generatePath: async (request: LearningPathRequest): Promise<LearningPath> => {
-    return await fetchApi<LearningPath>('/api/learning-path/generate', {
+    return await fetchApi<LearningPath>('/learning-path/generate', {
       method: 'POST',
       body: JSON.stringify(request),
     });
@@ -176,7 +176,7 @@ export const learningPathsApi = {
   
   // Save a learning path to user's account
   savePath: async (path: LearningPath): Promise<LearningPath> => {
-    return await fetchApi<LearningPath>('/api/learning-path/save', {
+    return await fetchApi<LearningPath>('/learning-path/save', {
       method: 'POST',
       body: JSON.stringify(path),
     });
@@ -184,12 +184,12 @@ export const learningPathsApi = {
   
   // Get user's saved learning paths
   getUserPaths: async (): Promise<LearningPath[]> => {
-    return await fetchApi<LearningPath[]>('/api/learning-path/user');
+    return await fetchApi<LearningPath[]>('/learning-path/user');
   },
   
   // Get a specific learning path by ID
   getPathById: async (id: string): Promise<LearningPath> => {
-    return await fetchApi<LearningPath>(`/api/learning-path/${id}`);
+    return await fetchApi<LearningPath>(`/learning-path/${id}`);
   },
 };
 
@@ -229,7 +229,7 @@ export const skillGapApi = {
     const authHeader = tokens?.access_token ? `Bearer ${tokens.access_token}` : '';
     
     // Make a direct fetch call instead of using fetchApi to avoid header issues with FormData
-    const url = `${API_BASE_URL}/api/skill-gap/analyze`;
+    const url = `${API_BASE_URL}/skill-gap/analyze`;
     
     try {
       const response = await fetch(url, {
@@ -260,17 +260,17 @@ export const skillGapApi = {
   
   // Get skill gap analysis history
   getAnalysisHistory: async (): Promise<SkillGapAnalysis[]> => {
-    return fetchApi<SkillGapAnalysis[]>('/api/skill-gap/history');
+    return fetchApi<SkillGapAnalysis[]>('/skill-gap/history');
   },
   
   // Get a specific analysis by ID
   getAnalysisById: async (analysisId: string): Promise<SkillGapAnalysis> => {
-    return fetchApi<SkillGapAnalysis>(`/api/skill-gap/history/${analysisId}`);
+    return fetchApi<SkillGapAnalysis>(`/skill-gap/history/${analysisId}`);
   },
   
   // Generate project recommendations based on missing skills
   getProjectRecommendations: async (skills: string[]): Promise<ProjectRecommendation[]> => {
-    return fetchApi<ProjectRecommendation[]>('/api/skill-gap/projects', {
+    return fetchApi<ProjectRecommendation[]>('/skill-gap/projects', {
       method: 'POST',
       body: JSON.stringify({ skills }),
     });
@@ -278,7 +278,7 @@ export const skillGapApi = {
   
   // Get learning resources for specific skills
   getLearningResources: async (skills: string[]): Promise<SkillLearningResources[]> => {
-    return fetchApi<SkillLearningResources[]>('/api/skill-gap/resources', {
+    return fetchApi<SkillLearningResources[]>('/skill-gap/resources', {
       method: 'POST',
       body: JSON.stringify({ skills }),
     });
@@ -289,7 +289,7 @@ export const skillGapApi = {
     const formData = new FormData();
     formData.append('resume_file', resumeFile);
     
-    return fetchApi<ResumeAnalysisResult>('/api/resume/analyze', {
+    return fetchApi<ResumeAnalysisResult>('/resume/analyze', {
       method: 'POST',
       headers: {
         'Content-Type': undefined as any,
@@ -311,7 +311,7 @@ export const resumeApi = {
     const tokens = getStoredTokens();
     const authHeader = tokens?.access_token ? `Bearer ${tokens.access_token}` : '';
     
-    const response = await fetch(`${API_BASE_URL}/api/resumes`, {
+    const response = await fetch(`${API_BASE_URL}/resumes`, {
       method: 'POST',
       headers: {
         'Authorization': authHeader
@@ -335,7 +335,7 @@ export const resumeApi = {
   
   // Save resume text directly
   saveResumeText: async (title: string, content: string, isPrimary: boolean = false): Promise<Resume> => {
-    return fetchApi<Resume>('/api/resumes/text', {
+    return fetchApi<Resume>('/resumes/text', {
       method: 'POST',
       body: JSON.stringify({
         title,
@@ -347,22 +347,22 @@ export const resumeApi = {
   
   // Get all user's resumes
   getUserResumes: async (): Promise<ResumeListResponse> => {
-    return fetchApi<ResumeListResponse>('/api/resumes');
+    return fetchApi<ResumeListResponse>('/resumes');
   },
   
   // Get primary resume
   getPrimaryResume: async (): Promise<Resume | null> => {
-    return fetchApi<Resume | null>('/api/resumes/primary');
+    return fetchApi<Resume | null>('/resumes/primary');
   },
   
   // Get resume by ID
   getResumeById: async (id: string): Promise<Resume> => {
-    return fetchApi<Resume>(`/api/resumes/${id}`);
+    return fetchApi<Resume>(`/resumes/${id}`);
   },
   
   // Update resume
   updateResume: async (id: string, data: Partial<Resume>): Promise<Resume> => {
-    return fetchApi<Resume>(`/api/resumes/${id}`, {
+    return fetchApi<Resume>(`/resumes/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
@@ -370,14 +370,14 @@ export const resumeApi = {
   
   // Set resume as primary
   setPrimaryResume: async (id: string): Promise<Resume> => {
-    return fetchApi<Resume>(`/api/resumes/${id}/set-primary`, {
+    return fetchApi<Resume>(`/resumes/${id}/set-primary`, {
       method: 'PUT',
     });
   },
   
   // Delete resume
   deleteResume: async (id: string): Promise<void> => {
-    return fetchApi<void>(`/api/resumes/${id}`, {
+    return fetchApi<void>(`/resumes/${id}`, {
       method: 'DELETE',
     });
   },

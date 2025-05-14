@@ -5,57 +5,61 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
-import { learningPathsApi } from "@/lib/api";
+import { learningPathsApi, skillGapApi } from "@/lib/api";
 import { LearningPath } from "@/lib/models/learning-path";
 import { mockResumeAnalysis } from "@/lib/models/resume-analysis";
+import { SkillGapAnalysis } from "@/lib/models/skill-gap";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
+  const [skillAnalyses, setSkillAnalyses] = useState<SkillGapAnalysis[]>([]);
   const [loadingPaths, setLoadingPaths] = useState(false);
+  const [loadingAnalyses, setLoadingAnalyses] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Mock skill analyses - in a real implementation, these would come from an API
-  const mockSkillAnalyses = [
-    {
-      title: "Full Stack Developer",
-      date: "May 15, 2023",
-      status: "High match",
-      statusColor: "bg-green-500",
-    },
-    {
-      title: "Machine Learning Engineer",
-      date: "Apr 22, 2023",
-      status: "Medium match",
-      statusColor: "bg-yellow-500",
-    },
-    {
-      title: "DevOps Engineer",
-      date: "Mar 10, 2023",
-      status: "Low match",
-      statusColor: "bg-red-500",
-    },
-  ];
-
-  // Fetch user's learning paths
+  // Fetch user's learning paths and skill gap analyses
   useEffect(() => {
-    const fetchLearningPaths = async () => {
+    const fetchUserData = async () => {
       try {
         setLoadingPaths(true);
+        setLoadingAnalyses(true);
+        
+        // Fetch learning paths
         const paths = await learningPathsApi.getUserPaths();
         setLearningPaths(paths);
+        
+        // Fetch skill gap analyses
+        const analyses = await skillGapApi.getAnalysisHistory();
+        setSkillAnalyses(analyses);
+        console.log("Fetched analyses:", analyses);
       } catch (err) {
-        console.error("Failed to fetch learning paths:", err);
-        setError("Failed to load your learning paths. Please try again later.");
+        console.error("Failed to fetch user data:", err);
+        setError("Failed to load your data. Please try again later.");
       } finally {
         setLoadingPaths(false);
+        setLoadingAnalyses(false);
       }
     };
 
     if (user) {
-      fetchLearningPaths();
+      fetchUserData();
     }
   }, [user]);
+
+  // Helper function to get status color based on match percentage
+  const getStatusColor = (matchPercentage: number): string => {
+    if (matchPercentage >= 75) return "bg-green-500";
+    if (matchPercentage >= 50) return "bg-yellow-500";
+    return "bg-red-500"; 
+  };
+  
+  // Helper function to get status text based on match percentage
+  const getStatusText = (matchPercentage: number): string => {
+    if (matchPercentage >= 75) return "High match";
+    if (matchPercentage >= 50) return "Medium match";
+    return "Low match";
+  };
 
   return (
     <div className="space-y-8">
@@ -73,8 +77,12 @@ export default function Dashboard() {
           <CardContent>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-bold text-blue-600">12</p>
-                <p className="text-sm text-green-600">4 addressed recently</p>
+                <p className="text-3xl font-bold text-blue-600">
+                  {skillAnalyses.reduce((total, analysis) => total + analysis.missing_skills.length, 0)}
+                </p>
+                <p className="text-sm text-green-600">
+                  {skillAnalyses.length > 0 ? `From ${skillAnalyses.length} job analyses` : "No analyses yet"}
+                </p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -157,23 +165,45 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockSkillAnalyses.map((item, i) => (
-                <div key={i} className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold">
-                    {item.title.charAt(0)}
+            {loadingAnalyses ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
+              </div>
+            ) : skillAnalyses.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-gray-500">No skill gap analyses yet.</p>
+                <Button className="mt-3" size="sm">
+                  <Link href="/dashboard/skill-gap">Start Your First Analysis</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {skillAnalyses.slice(0, 3).map((analysis, i) => (
+                  <div key={analysis.id} className="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold">
+                      {analysis.job_title.charAt(0)}
+                    </div>
+                    <div className="ml-4 flex-grow">
+                      <p className="font-medium">{analysis.job_title}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(analysis.createdAt || new Date()).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center">
+                      <div className={`w-2 h-2 rounded-full ${getStatusColor(analysis.match_percentage)} mr-2`}></div>
+                      <span className="text-sm">{getStatusText(analysis.match_percentage)}</span>
+                    </div>
                   </div>
-                  <div className="ml-4 flex-grow">
-                    <p className="font-medium">{item.title}</p>
-                    <p className="text-xs text-gray-500">{item.date}</p>
+                ))}
+                {skillAnalyses.length > 3 && (
+                  <div className="text-center pt-2">
+                    <Link href="/dashboard/skill-gap" className="text-sm text-blue-600 hover:underline">
+                      View all {skillAnalyses.length} analyses
+                    </Link>
                   </div>
-                  <div className="flex items-center">
-                    <div className={`w-2 h-2 rounded-full ${item.statusColor} mr-2`}></div>
-                    <span className="text-sm">{item.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
         
