@@ -162,8 +162,8 @@ export const learningPathsApi = {
   },
   
   // Get questions for tailoring learning path based on niche
-  getQuestions: async (nicheId: number): Promise<PathQuestion[]> => {
-    return await fetchApi<PathQuestion[]>(`/learning-path/questions?nicheId=${nicheId}`);
+  getQuestions: async (nicheId: number, useAi: boolean = true): Promise<PathQuestion[]> => {
+    return await fetchApi<PathQuestion[]>(`/learning-path/questions?nicheId=${nicheId}&use_ai=${useAi}`);
   },
   
   // Generate a learning path based on user's answers

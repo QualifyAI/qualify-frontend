@@ -33,6 +33,9 @@ export default function LearningPathsPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [loadingPath, setLoadingPath] = useState(false);
+  const [useAiQuestions, setUseAiQuestions] = useState(true);
+  const [customAnswer, setCustomAnswer] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
   
   // Data states
   const [niches, setNiches] = useState<Niche[]>([]);
@@ -168,7 +171,7 @@ export default function LearningPathsPage() {
       }
       
       // Fetch questions for the selected niche
-      const fetchedQuestions = await learningPathsApi.getQuestions(nicheId);
+      const fetchedQuestions = await learningPathsApi.getQuestions(nicheId, useAiQuestions);
       setQuestions(fetchedQuestions);
       setStep(PathStep.ANSWER_QUESTIONS);
       setCurrentQuestionIndex(0);
@@ -210,6 +213,8 @@ export default function LearningPathsPage() {
   const handleNextQuestion = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setCustomAnswer('');
+      setShowCustomInput(false);
     } else {
       // All questions answered, generate learning path
       generateLearningPath();
@@ -284,6 +289,8 @@ export default function LearningPathsPage() {
   const handlePreviousQuestion = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
+      setCustomAnswer('');
+      setShowCustomInput(false);
     }
   };
 
@@ -302,6 +309,8 @@ export default function LearningPathsPage() {
     setCurrentQuestionIndex(0);
     setAnswers({});
     setGeneratedPath(null);
+    setCustomAnswer('');
+    setShowCustomInput(false);
   };
 
   // Save the learning path to the user's account
@@ -364,8 +373,8 @@ export default function LearningPathsPage() {
           </div>
         )}
 
-        <div className="max-w-md mx-auto mb-8">
-          <div className="relative">
+        <div className="max-w-md mx-auto mb-4 flex items-center justify-between">
+          <div className="relative w-full">
             <svg
               className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
               width="20"
@@ -388,6 +397,18 @@ export default function LearningPathsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+          </div>
+        </div>
+        
+        <div className="max-w-md mx-auto mb-8 flex items-center justify-center gap-2 p-4 bg-gray-50 rounded-lg">
+          <Label htmlFor="ai-questions" className="text-sm font-medium cursor-pointer">
+            Use AI to generate questions
+          </Label>
+          <div className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white bg-gray-200 data-[state=checked]:bg-blue-600" onClick={() => setUseAiQuestions(!useAiQuestions)} data-state={useAiQuestions ? "checked" : "unchecked"}>
+            <span className="inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0.5" data-state={useAiQuestions ? "checked" : "unchecked"} />
+          </div>
+          <div className="text-sm text-gray-500">
+            {useAiQuestions ? 'Dynamic questions customized for each niche' : 'Standard predefined questions'}
           </div>
         </div>
         
@@ -484,6 +505,18 @@ export default function LearningPathsPage() {
     const currentQuestion = questions[currentQuestionIndex];
     const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
     
+    // Handle selection of "Other" option
+    const handleSelectOther = () => {
+      setShowCustomInput(true);
+      handleSelectAnswer(currentQuestion.id, 'custom');
+    };
+    
+    // Handle custom answer input
+    const handleCustomAnswerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setCustomAnswer(e.target.value);
+      handleSelectAnswer(currentQuestion.id, `custom:${e.target.value}`);
+    };
+    
     return (
       <div className="max-w-3xl mx-auto">
         {/* Progress bar and steps */}
@@ -558,6 +591,49 @@ export default function LearningPathsPage() {
                   </div>
                 </div>
               ))}
+
+              {/* Custom "Other" option */}
+              <div
+                className={`
+                  border rounded-lg p-4 cursor-pointer transition-all
+                  ${answers[currentQuestion.id]?.startsWith('custom') 
+                    ? 'border-blue-500 bg-blue-50 shadow-md transform scale-[1.02]' 
+                    : 'hover:border-gray-300 hover:bg-gray-50'}
+                `}
+                onClick={handleSelectOther}
+              >
+                <div className="flex items-start">
+                  <div 
+                    className={`
+                      w-5 h-5 mt-0.5 rounded-full border flex-shrink-0
+                      ${answers[currentQuestion.id]?.startsWith('custom') 
+                        ? 'border-blue-500 bg-blue-500' 
+                        : 'border-gray-300'}
+                    `}
+                  >
+                    {answers[currentQuestion.id]?.startsWith('custom') && (
+                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="ml-3 w-full">
+                    <h4 className="font-medium text-gray-900">Other (please specify)</h4>
+                    {(answers[currentQuestion.id]?.startsWith('custom') || showCustomInput) && (
+                      <div className="mt-2">
+                        <Input
+                          type="text"
+                          placeholder="Type your answer here..."
+                          value={customAnswer}
+                          onChange={handleCustomAnswerChange}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
           <CardFooter className="flex justify-between border-t pt-6">
@@ -570,7 +646,7 @@ export default function LearningPathsPage() {
             </Button>
             <Button 
               onClick={handleNextQuestion}
-              disabled={!answers[currentQuestion.id]}
+              disabled={!answers[currentQuestion.id] || (answers[currentQuestion.id]?.startsWith('custom:') && !customAnswer)}
             >
               {currentQuestionIndex === questions.length - 1 ? 'Generate My Path' : 'Next Question'}
             </Button>
@@ -869,7 +945,7 @@ function LearningPathView({
           </Link>
           <Button variant="ghost" size="lg" onClick={onReset} className="gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
             </svg>
             Create New Path
           </Button>
