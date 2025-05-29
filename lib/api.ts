@@ -328,7 +328,7 @@ export const learningPathsApi = {
     useAi: boolean = true
   ): Promise<PathQuestion[]> => {
     return await fetchApi<PathQuestion[]>(
-      `/learning-path/questions?nicheId=${nicheId}&use_ai=${useAi}`
+      `/learning-paths/questions?nicheId=${nicheId}&use_ai=${useAi}`
     );
   },
 
