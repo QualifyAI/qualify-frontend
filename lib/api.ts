@@ -334,7 +334,7 @@ export const learningPathsApi = {
 
   // Generate a learning path based on user's answers
   generatePath: async (request: LearningPathRequest): Promise<LearningPath> => {
-    return await fetchApi<LearningPath>("/learning-path/generate", {
+    return await fetchApi<LearningPath>("/learning-paths/generate", {
       method: "POST",
       body: JSON.stringify(request),
     });
@@ -342,7 +342,7 @@ export const learningPathsApi = {
 
   // Save a learning path to user's account
   savePath: async (path: LearningPath): Promise<LearningPath> => {
-    return await fetchApi<LearningPath>("/learning-path/save", {
+    return await fetchApi<LearningPath>("/learning-paths/save", {
       method: "POST",
       body: JSON.stringify(path),
     });
