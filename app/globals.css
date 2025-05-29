@@ -4,8 +4,13 @@
   .gradient-text {
     @apply bg-gradient-to-r from-blue-600 to-orange-500 bg-clip-text text-transparent;
   }
-  
+
   .gradient-bg {
     @apply bg-gradient-to-r from-blue-600 to-orange-500;
   }
+}
+
+/* Add cursor pointer to all buttons */
+button {
+  cursor: pointer;
 }
