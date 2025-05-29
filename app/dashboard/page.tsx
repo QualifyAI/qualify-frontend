@@ -1,13 +1,22 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
 import { learningPathsApi, skillGapApi, resumeAnalysisApi } from "@/lib/api";
 import { LearningPath } from "@/lib/models/learning-path";
-import { mockResumeAnalysis, ResumeAnalysis } from "@/lib/models/resume-analysis";
+import {
+  mockResumeAnalysis,
+  ResumeAnalysis,
+} from "@/lib/models/resume-analysis";
 import { SkillGapAnalysis } from "@/lib/models/skill-gap";
 
 export default function Dashboard() {
@@ -19,58 +28,71 @@ export default function Dashboard() {
   const [loadingAnalyses, setLoadingAnalyses] = useState(false);
   const [loadingResume, setLoadingResume] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Fetch user's learning paths, skill gap analyses, and resume analyses
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         setLoadingPaths(true);
         setLoadingAnalyses(true);
         setLoadingResume(true);
-        
-        // Fetch learning paths
+
         const paths = await learningPathsApi.getUserPaths();
         setLearningPaths(paths);
-        
-        // Fetch skill gap analyses
+
         const analyses = await skillGapApi.getAnalysisHistory();
         setSkillAnalyses(analyses);
-        
-        // Fetch resume analyses
+
         try {
           const resumeAnalysisData = await resumeAnalysisApi.getUserAnalyses();
-          
-          // Transform the API response to match our ResumeAnalysis interface
-          const transformedAnalyses = resumeAnalysisData.map((analysis: any) => ({
-            id: analysis.id,
-            userId: analysis.userId,
-            overallScore: analysis.analysis_result?.overall_score || 0,
-            categoryScores: [
-              { category: 'ATS Compatibility', score: analysis.analysis_result?.ats_score || 0 },
-              { category: 'Content Quality', score: analysis.analysis_result?.content_score || 0 },
-              { category: 'Format & Structure', score: analysis.analysis_result?.format_score || 0 },
-              { category: 'Impact & Effectiveness', score: analysis.analysis_result?.impact_score || 0 }
-            ],
-            recommendations: [
-              ...(analysis.analysis_result?.critical_improvements?.slice(0, 3).map((improvement: string) => ({
-                text: improvement,
-                type: 'improvement' as const
-              })) || []),
-              ...(analysis.analysis_result?.top_strengths?.slice(0, 2).map((strength: string) => ({
-                text: strength,
-                type: 'positive' as const
-              })) || [])
-            ],
-            createdAt: new Date(analysis.createdAt)
-          }));
-          
+
+          const transformedAnalyses = resumeAnalysisData.map(
+            (analysis: any) => ({
+              id: analysis.id,
+              userId: analysis.userId,
+              overallScore: analysis.analysis_result?.overall_score || 0,
+              categoryScores: [
+                {
+                  category: "ATS Compatibility",
+                  score: analysis.analysis_result?.ats_score || 0,
+                },
+                {
+                  category: "Content Quality",
+                  score: analysis.analysis_result?.content_score || 0,
+                },
+                {
+                  category: "Format & Structure",
+                  score: analysis.analysis_result?.format_score || 0,
+                },
+                {
+                  category: "Impact & Effectiveness",
+                  score: analysis.analysis_result?.impact_score || 0,
+                },
+              ],
+              recommendations: [
+                ...(analysis.analysis_result?.critical_improvements
+                  ?.slice(0, 3)
+                  .map((improvement: string) => ({
+                    text: improvement,
+                    type: "improvement" as const,
+                  })) || []),
+                ...(analysis.analysis_result?.top_strengths
+                  ?.slice(0, 2)
+                  .map((strength: string) => ({
+                    text: strength,
+                    type: "positive" as const,
+                  })) || []),
+              ],
+              createdAt: new Date(analysis.createdAt),
+            })
+          );
+
           setResumeAnalyses(transformedAnalyses);
         } catch (resumeError) {
           console.error("Failed to fetch resume analyses:", resumeError);
           // Fall back to mock data if API fails
           setResumeAnalyses([mockResumeAnalysis]);
         }
-        
+
         console.log("Fetched analyses:", analyses);
       } catch (err) {
         console.error("Failed to fetch user data:", err);
@@ -88,15 +110,16 @@ export default function Dashboard() {
   }, [user]);
 
   // Use the most recent analysis or mock data
-  const latestResumeAnalysis = resumeAnalyses.length > 0 ? resumeAnalyses[0] : mockResumeAnalysis;
+  const latestResumeAnalysis =
+    resumeAnalyses.length > 0 ? resumeAnalyses[0] : mockResumeAnalysis;
 
   // Helper function to get status color based on match percentage
   const getStatusColor = (matchPercentage: number): string => {
     if (matchPercentage >= 75) return "bg-green-500";
     if (matchPercentage >= 50) return "bg-yellow-500";
-    return "bg-red-500"; 
+    return "bg-red-500";
   };
-  
+
   // Helper function to get status text based on match percentage
   const getStatusText = (matchPercentage: number): string => {
     if (matchPercentage >= 75) return "High match";
@@ -107,10 +130,14 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.full_name || "User"}</h1>
-        <p className="text-gray-500">Track your career preparation progress and start new analyses</p>
+        <h1 className="text-3xl font-bold mb-2">
+          Welcome back, {user?.full_name || "User"}
+        </h1>
+        <p className="text-gray-500">
+          Track your career preparation progress and start new analyses
+        </p>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="border-0 shadow-md">
           <CardHeader className="pb-2">
@@ -121,14 +148,29 @@ export default function Dashboard() {
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-3xl font-bold text-blue-600">
-                  {skillAnalyses.reduce((total, analysis) => total + analysis.missing_skills.length, 0)}
+                  {skillAnalyses.reduce(
+                    (total, analysis) => total + analysis.missing_skills.length,
+                    0
+                  )}
                 </p>
                 <p className="text-sm text-green-600">
-                  {skillAnalyses.length > 0 ? `From ${skillAnalyses.length} job analyses` : "No analyses yet"}
+                  {skillAnalyses.length > 0
+                    ? `From ${skillAnalyses.length} job analyses`
+                    : "No analyses yet"}
                 </p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="m22 8-6 4 6 4V8Z"></path>
                   <rect x="2" y="6" width="14" height="12" rx="2"></rect>
                   <path d="M6 12h.01"></path>
@@ -138,7 +180,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="border-0 shadow-md">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Resume Score</CardTitle>
@@ -147,11 +189,24 @@ export default function Dashboard() {
           <CardContent>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-bold text-orange-500">{latestResumeAnalysis.overallScore}<span className="text-xl">/100</span></p>
+                <p className="text-3xl font-bold text-orange-500">
+                  {latestResumeAnalysis.overallScore}
+                  <span className="text-xl">/100</span>
+                </p>
                 <p className="text-sm text-green-600">+12 from previous</p>
               </div>
               <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-500">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
                   <path d="M5 12V5a2 2 0 0 1 2-2h7l5 5v4"></path>
                   <path d="M5 21h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2Z"></path>
@@ -162,7 +217,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="border-0 shadow-md">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Learning Paths</CardTitle>
@@ -171,15 +226,35 @@ export default function Dashboard() {
           <CardContent>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-bold text-indigo-600">{learningPaths.length}</p>
+                <p className="text-3xl font-bold text-indigo-600">
+                  {learningPaths.length}
+                </p>
                 <p className="text-sm text-gray-600">
-                  <Link href="/dashboard/learning-paths" className="hover:underline">
-                    {learningPaths.length > 0 ? "View your paths" : "Create your first path"}
+                  <Link
+                    href="/dashboard/learning-paths"
+                    className="hover:underline"
+                  >
+                    {learningPaths.length > 0
+                      ? "View your paths"
+                      : "Create your first path"}
                   </Link>
                 </p>
               </div>
-              <Link href="/dashboard/learning-paths" className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <Link
+                href="/dashboard/learning-paths"
+                className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M12 2v8"></path>
                   <path d="m16 4-4 4-4-4"></path>
                   <path d="M3 12h10"></path>
@@ -193,14 +268,16 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-0 shadow-md">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Recent Analyses</CardTitle>
-                <CardDescription>Your latest skill gap analyses</CardDescription>
+                <CardDescription>
+                  Your latest skill gap analyses
+                </CardDescription>
               </div>
               <Button variant="outline" size="sm">
                 <Link href="/dashboard/skill-gap">View All</Link>
@@ -216,46 +293,64 @@ export default function Dashboard() {
               <div className="text-center py-6">
                 <p className="text-gray-500">No skill gap analyses yet.</p>
                 <Button className="mt-3" size="sm">
-                  <Link href="/dashboard/skill-gap">Start Your First Analysis</Link>
+                  <Link href="/dashboard/skill-gap">
+                    Start Your First Analysis
+                  </Link>
                 </Button>
               </div>
             ) : (
-            <div className="space-y-4">
+              <div className="space-y-4">
                 {skillAnalyses.slice(0, 3).map((analysis, i) => (
-                  <div key={analysis.id} className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold">
+                  <div
+                    key={analysis.id}
+                    className="flex items-center p-3 bg-gray-50 rounded-lg"
+                  >
+                    <div className="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-bold">
                       {analysis.job_title.charAt(0)}
-                  </div>
-                  <div className="ml-4 flex-grow">
+                    </div>
+                    <div className="ml-4 flex-grow">
                       <p className="font-medium">{analysis.job_title}</p>
                       <p className="text-xs text-gray-500">
-                        {new Date(analysis.createdAt || new Date()).toLocaleDateString()}
+                        {new Date(
+                          analysis.createdAt || new Date()
+                        ).toLocaleDateString()}
                       </p>
                     </div>
                     <div className="flex items-center">
-                      <div className={`w-2 h-2 rounded-full ${getStatusColor(analysis.match_percentage)} mr-2`}></div>
-                      <span className="text-sm">{getStatusText(analysis.match_percentage)}</span>
+                      <div
+                        className={`w-2 h-2 rounded-full ${getStatusColor(
+                          analysis.match_percentage
+                        )} mr-2`}
+                      ></div>
+                      <span className="text-sm">
+                        {getStatusText(analysis.match_percentage)}
+                      </span>
                     </div>
                   </div>
                 ))}
                 {skillAnalyses.length > 3 && (
                   <div className="text-center pt-2">
-                    <Link href="/dashboard/skill-gap" className="text-sm text-blue-600 hover:underline">
+                    <Link
+                      href="/dashboard/skill-gap"
+                      className="text-sm text-blue-600 hover:underline"
+                    >
                       View all {skillAnalyses.length} analyses
                     </Link>
                   </div>
                 )}
-                </div>
+              </div>
             )}
           </CardContent>
         </Card>
-        
+
         <Card className="border-0 shadow-md">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Your Learning Paths</CardTitle>
-                <CardDescription>Continue your personalized learning journey</CardDescription>
+                <CardDescription>
+                  Continue your personalized learning journey
+                </CardDescription>
               </div>
               <Button variant="outline" size="sm">
                 <Link href="/dashboard/learning-paths">Create New</Link>
@@ -274,24 +369,43 @@ export default function Dashboard() {
             ) : learningPaths.length === 0 ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mx-auto mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <circle cx="12" cy="12" r="10"></circle>
                     <path d="M12 8v4"></path>
                     <path d="M12 16h.01"></path>
                   </svg>
                 </div>
-                <p className="text-gray-600 mb-4">You haven't created any learning paths yet.</p>
+                <p className="text-gray-600 mb-4">
+                  You haven't created any learning paths yet.
+                </p>
                 <Button>
-                  <Link href="/dashboard/learning-paths">Create Your First Path</Link>
+                  <Link href="/dashboard/learning-paths">
+                    Create Your First Path
+                  </Link>
                 </Button>
               </div>
             ) : (
               <div className="space-y-4">
                 {learningPaths.slice(0, 3).map((path, i) => (
-                  <Link href={`/dashboard/learning-paths/${path.id}`} key={path.id}>
+                  <Link
+                    href={`/dashboard/learning-paths/${path.id}`}
+                    key={path.id}
+                  >
                     <div className="flex p-3 bg-gray-50 hover:bg-gray-100 transition-colors rounded-lg cursor-pointer">
                       <div className="flex-shrink-0 w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600">
-                        <span className="text-lg font-bold">{path.niche.charAt(0)}</span>
+                        <span className="text-lg font-bold">
+                          {path.niche.charAt(0)}
+                        </span>
                       </div>
                       <div className="ml-4 flex-grow">
                         <p className="font-medium">{path.title}</p>
@@ -307,7 +421,10 @@ export default function Dashboard() {
                 ))}
                 {learningPaths.length > 3 && (
                   <div className="text-center pt-2">
-                    <Link href="/dashboard/learning-paths" className="text-sm text-blue-600 hover:underline">
+                    <Link
+                      href="/dashboard/learning-paths"
+                      className="text-sm text-blue-600 hover:underline"
+                    >
                       View all {learningPaths.length} learning paths
                     </Link>
                   </div>
@@ -317,7 +434,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-      
+
       <div>
         <Card className="border-0 shadow-md">
           <CardHeader>
@@ -336,42 +453,68 @@ export default function Dashboard() {
               <div>
                 <h4 className="font-medium mb-3">Category Scores</h4>
                 <div className="space-y-4">
-                  {latestResumeAnalysis.categoryScores.map((category, index) => (
-                    <div key={index}>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">{category.category}</span>
-                        <span className="text-sm font-medium">{category.score}%</span>
+                  {latestResumeAnalysis.categoryScores.map(
+                    (category, index) => (
+                      <div key={index}>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium">
+                            {category.category}
+                          </span>
+                          <span className="text-sm font-medium">
+                            {category.score}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-gradient-to-r from-blue-600 to-orange-500 h-2 rounded-full"
+                            style={{ width: `${category.score}%` }}
+                          ></div>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-gradient-to-r from-blue-600 to-orange-500 h-2 rounded-full" 
-                          style={{ width: `${category.score}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               </div>
-              
+
               <div>
                 <h4 className="font-medium mb-3">Top Recommendations</h4>
                 <ul className="space-y-2">
-                  {latestResumeAnalysis.recommendations.map((recommendation, index) => (
-                    <li key={index} className="flex items-start">
-                      {recommendation.type === 'improvement' ? (
-                        <svg className="w-5 h-5 text-orange-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5 text-green-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                      )}
-                      <span className="text-sm">
-                        {recommendation.text}
-                      </span>
-                    </li>
-                  ))}
+                  {latestResumeAnalysis.recommendations.map(
+                    (recommendation, index) => (
+                      <li key={index} className="flex items-start">
+                        {recommendation.type === "improvement" ? (
+                          <svg
+                            className="w-5 h-5 text-orange-500 mt-0.5 mr-2"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            ></path>
+                          </svg>
+                        ) : (
+                          <svg
+                            className="w-5 h-5 text-green-500 mt-0.5 mr-2"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M5 13l4 4L19 7"
+                            ></path>
+                          </svg>
+                        )}
+                        <span className="text-sm">{recommendation.text}</span>
+                      </li>
+                    )
+                  )}
                 </ul>
               </div>
             </div>
@@ -380,4 +523,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-} 
+}
