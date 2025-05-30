@@ -418,7 +418,7 @@ function AnalyzingView() {
     <div className="flex flex-col items-center justify-center h-[70vh]">
       <div className="relative w-24 h-24">
         <div className="w-24 h-24 rounded-full border-t-4 border-b-4 border-blue-500 animate-spin"></div>
-        <div className="w-24 h-24 rounded-full border-l-4 border-r-4 border-transparent border-t-4 border-blue-200 animate-spin absolute top-0 left-0" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+        <div className="w-24 h-24 rounded-full border-l-4 border-r-4 border-t-4 border-blue-200 animate-spin absolute top-0 left-0" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
       </div>
       
       <div className="mt-8 text-center">
