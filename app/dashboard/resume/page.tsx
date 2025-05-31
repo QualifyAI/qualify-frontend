@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resumeApi, skillGapApi } from '@/lib/api';
-import { ResumeAnalysisResult, OptimizedResumeResult } from '@/lib/api';
+import { ResumeAnalysisResult, SimpleOptimizedResumeResult } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { hasToken } from '@/lib/auth';
 import { Resume } from '@/lib/api';
@@ -15,7 +14,7 @@ import ReactMarkdown from 'react-markdown';
 
 // Enum for tracking the analysis steps
 enum AnalysisStep {
-  UPLOAD = 'upload',
+  SELECT = 'select',
   ANALYZING = 'analyzing',
   RESULTS = 'results',
   OPTIMIZED = 'optimized',
@@ -23,18 +22,14 @@ enum AnalysisStep {
 
 export default function ResumeEnhancementPage() {
   const router = useRouter();
-  const [step, setStep] = useState<AnalysisStep>(AnalysisStep.UPLOAD);
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [step, setStep] = useState<AnalysisStep>(AnalysisStep.SELECT);
   const [selectedResume, setSelectedResume] = useState<Resume | null>(null);
   const [analysisResult, setAnalysisResult] = useState<ResumeAnalysisResult | null>(null);
-  const [optimizedResume, setOptimizedResume] = useState<OptimizedResumeResult | null>(null);
+  const [optimizedResume, setOptimizedResume] = useState<SimpleOptimizedResumeResult | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [error, setError] = useState<string | null>(null);
   const [userResumes, setUserResumes] = useState<Resume[]>([]);
   const [loadingResumes, setLoadingResumes] = useState(false);
-  
-  // File input ref for resetting
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Load user's resumes when the component mounts
   useEffect(() => {
@@ -48,6 +43,12 @@ export default function ResumeEnhancementPage() {
       try {
         const response = await resumeApi.getUserResumes();
         setUserResumes(response.resumes);
+        
+        // Auto-select primary resume if available
+        const primaryResume = response.resumes.find(r => r.is_primary);
+        if (primaryResume) {
+          setSelectedResume(primaryResume);
+        }
       } catch (err) {
         console.error("Failed to fetch resumes:", err);
         setError("Failed to load your resumes");
@@ -59,37 +60,19 @@ export default function ResumeEnhancementPage() {
     fetchResumes();
   }, [router]);
 
-  // Handle file change
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setResumeFile(e.target.files[0]);
-      setSelectedResume(null); // Clear selected resume when file is uploaded
-    }
-  };
-
-  // Reset file input
-  const resetFileInput = () => {
-    setResumeFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
   // Handle resume selection
   const handleResumeSelect = (resumeId: string) => {
     const resume = userResumes.find(r => r.id === resumeId);
     if (resume) {
       setSelectedResume(resume);
-      setResumeFile(null); // Clear uploaded file when resume is selected
-      resetFileInput();
     }
   };
 
   // Start analysis
   const handleStartAnalysis = () => {
     // Validate inputs
-    if (!resumeFile && !selectedResume) {
-      setError('Please upload your resume or select an existing one');
+    if (!selectedResume) {
+      setError('Please select a resume to analyze');
       return;
     }
 
@@ -102,25 +85,24 @@ export default function ResumeEnhancementPage() {
 
     // Call the API to analyze the resume
     skillGapApi.analyzeResume(
-      resumeFile, 
-      selectedResume?.id || null,
+      selectedResume.id,
       defaultJobTitle,
       defaultIndustry
     )
       .then((result: ResumeAnalysisResult) => {
         setAnalysisResult(result);
-      setStep(AnalysisStep.RESULTS);
+        setStep(AnalysisStep.RESULTS);
       })
       .catch((error: Error) => {
         console.error('Resume analysis failed:', error);
         setError(`Analysis failed: ${error.message || 'Unknown error'}`);
-        setStep(AnalysisStep.UPLOAD);
+        setStep(AnalysisStep.SELECT);
       });
   };
 
   // Generate optimized resume
   const handleOptimizeResume = () => {
-    if (!analysisResult) return;
+    if (!analysisResult || !selectedResume) return;
     
     setStep(AnalysisStep.ANALYZING);
     
@@ -129,13 +111,12 @@ export default function ResumeEnhancementPage() {
     const defaultIndustry = "Technology";
     
     skillGapApi.optimizeResume(
-      resumeFile,
-      selectedResume?.id || null,
+      selectedResume.id,
       defaultJobTitle,
       defaultIndustry,
       analysisResult
     )
-      .then((result: OptimizedResumeResult) => {
+      .then((result: SimpleOptimizedResumeResult) => {
         setOptimizedResume(result);
         setStep(AnalysisStep.OPTIMIZED);
       })
@@ -148,13 +129,26 @@ export default function ResumeEnhancementPage() {
 
   // Reset and start over
   const handleReset = () => {
-    setStep(AnalysisStep.UPLOAD);
-    setResumeFile(null);
+    setStep(AnalysisStep.SELECT);
     setSelectedResume(null);
     setAnalysisResult(null);
     setOptimizedResume(null);
     setError(null);
-    resetFileInput();
+  };
+
+  // Download optimized resume
+  const handleDownloadResume = () => {
+    if (!optimizedResume) return;
+    
+    const blob = new Blob([optimizedResume.markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `optimized-resume-${new Date().toISOString().split('T')[0]}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -171,11 +165,7 @@ export default function ResumeEnhancementPage() {
         </div>
       )}
       
-      {step === AnalysisStep.UPLOAD && <ResumeUploadForm 
-        resumeFile={resumeFile}
-        fileInputRef={fileInputRef}
-        handleFileChange={handleFileChange}
-        resetFileInput={resetFileInput}
+      {step === AnalysisStep.SELECT && <ResumeSelectionForm 
         selectedResume={selectedResume}
         userResumes={userResumes}
         handleResumeSelect={handleResumeSelect}
@@ -194,210 +184,230 @@ export default function ResumeEnhancementPage() {
         optimizedResume={optimizedResume}
         onBack={() => setStep(AnalysisStep.RESULTS)}
         onReset={handleReset}
+        onDownload={handleDownloadResume}
       />}
     </div>
   );
 }
 
-// Component for the upload form
-function ResumeUploadForm({ 
-  resumeFile, 
-  fileInputRef,
-  handleFileChange, 
-  resetFileInput,
+// Simplified resume selection form (no file upload)
+function ResumeSelectionForm({ 
   selectedResume, 
   userResumes,
   handleResumeSelect,
   loadingResumes,
   handleStartAnalysis 
 }: { 
-  resumeFile: File | null;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  resetFileInput: () => void;
   selectedResume: Resume | null;
   userResumes: Resume[];
   handleResumeSelect: (resumeId: string) => void;
   loadingResumes: boolean;
   handleStartAnalysis: () => void;
 }) {
+  const router = useRouter();
+  
   return (
     <div className="max-w-3xl mx-auto">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-3">Resume Enhancement</h1>
         <p className="text-gray-600">
-          Upload your resume for a comprehensive analysis and receive personalized recommendations to improve it.
+          Select a resume from your saved resumes for comprehensive analysis and professional enhancement.
         </p>
       </div>
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Upload Your Resume</CardTitle>
+          <CardTitle>Select Your Resume</CardTitle>
           <CardDescription>
-            We'll analyze your resume for ATS compatibility, content quality, and structure
+            Choose a resume to analyze for ATS compatibility, content quality, and structure optimization
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Stored Resumes Section */}
-          {userResumes.length > 0 && (
-            <div className="space-y-2">
-              <Label htmlFor="stored-resume">Select from your saved resumes</Label>
-              <div className="relative">
-                <select
-                  id="stored-resume"
-                  value={selectedResume?.id || ""}
-                  onChange={(e) => handleResumeSelect(e.target.value)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 appearance-none"
-                  disabled={loadingResumes}
-                >
-                  <option value="">Select a saved resume</option>
-                  {userResumes.map((resume) => (
-                    <option key={resume.id} value={resume.id}>
-                      {resume.title} {resume.is_primary ? "(Primary)" : ""}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
+          {userResumes.length > 0 ? (
+            <div className="space-y-4">
+              <Label htmlFor="stored-resume">Choose from your saved resumes</Label>
+              <div className="grid gap-3">
+                {userResumes.map((resume) => (
+                  <div
+                    key={resume.id}
+                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                      selectedResume?.id === resume.id
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                    onClick={() => handleResumeSelect(resume.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-900">
+                          {resume.title}
+                          {resume.is_primary && (
+                            <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Primary
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Created: {new Date(resume.created_at).toLocaleDateString()}
+                          {resume.updated_at && (
+                            <span className="ml-2">
+                              • Updated: {new Date(resume.updated_at).toLocaleDateString()}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center">
+                        {selectedResume?.id === resume.id && (
+                          <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
               {loadingResumes && (
-                <div className="text-sm text-gray-500">Loading your resumes...</div>
+                <div className="text-sm text-gray-500 text-center">Loading your resumes...</div>
               )}
             </div>
-          )}
-
-          {userResumes.length > 0 && (
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t"></span>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  OR
-                </span>
-              </div>
-            </div>
-          )}
-          
-          {/* Upload Resume File */}
-          <div className="space-y-2">
-            <Label htmlFor="resume-upload">Upload a new resume</Label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-            {resumeFile ? (
-              <div className="flex flex-col items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-green-500 mb-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <p className="text-sm font-medium text-gray-900">{resumeFile.name}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-2"
-                    onClick={resetFileInput}
-                >
-                  Remove
+          ) : (
+            <div className="text-center py-8">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No resumes found</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                You need to upload a resume first before you can analyze it.
+              </p>
+              <div className="mt-6">
+                <Button onClick={() => router.push('/dashboard')}>
+                  Go to Dashboard
                 </Button>
               </div>
-            ) : (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <div className="mt-4 flex text-sm leading-6 text-gray-600">
-                  <label
-                    htmlFor="resume-upload"
-                    className="relative cursor-pointer rounded-md bg-white font-semibold text-blue-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-2 hover:text-blue-500"
-                  >
-                    <span>Upload a file</span>
-                    <input
-                      id="resume-upload"
-                      name="resume-upload"
-                      type="file"
-                      className="sr-only"
-                        ref={fileInputRef}
-                      onChange={handleFileChange}
-                      accept=".pdf,.doc,.docx"
-                    />
-                  </label>
-                  <p className="pl-1">or drag and drop</p>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">PDF, DOC, or DOCX up to 5MB</p>
-              </>
-            )}
             </div>
-          </div>
+          )}
         </CardContent>
-        <CardFooter className="flex justify-end">
-          <Button onClick={handleStartAnalysis} disabled={!resumeFile && !selectedResume}>
-            Analyze Resume
-          </Button>
-        </CardFooter>
+        {userResumes.length > 0 && (
+          <CardFooter className="flex justify-between">
+            <div className="text-sm text-gray-500">
+              {selectedResume ? `Selected: ${selectedResume.title}` : 'No resume selected'}
+            </div>
+            <Button 
+              onClick={handleStartAnalysis} 
+              disabled={!selectedResume || loadingResumes}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            >
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+              </svg>
+              Analyze & Enhance Resume
+            </Button>
+          </CardFooter>
+        )}
       </Card>
     </div>
   );
 }
 
-// Component for the optimized resume view
+// Enhanced optimized resume view
 function OptimizedResumeView({ 
   optimizedResume, 
   onBack, 
-  onReset 
+  onReset,
+  onDownload
 }: { 
-  optimizedResume: OptimizedResumeResult;
+  optimizedResume: SimpleOptimizedResumeResult;
   onBack: () => void;
   onReset: () => void;
+  onDownload: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState("resume");
+
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-3">Optimized Resume</h1>
-        <p className="text-gray-600">
-          Your resume has been professionally enhanced based on our analysis.
+        <h1 className="text-4xl font-bold text-gray-900 mb-3">🎉 Resume Enhanced Successfully!</h1>
+        <p className="text-xl text-gray-600">
+          Your resume has been professionally optimized with an estimated improvement of <span className="font-bold text-green-600">+{optimizedResume.improvement_score} points</span>
         </p>
       </div>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Improved Resume</CardTitle>
-          <CardDescription>
-            Estimated improvement: +{optimizedResume.improvementScore} points
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="p-6 bg-white border rounded-lg shadow-sm">
-            <div className="prose max-w-none">
-              <ReactMarkdown>{optimizedResume.markdown}</ReactMarkdown>
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <div className="w-full bg-blue-50 p-4 rounded-lg">
-            <h3 className="font-medium text-blue-800 mb-2">Changes Made:</h3>
-            <ul className="list-disc list-inside space-y-1 text-sm text-blue-700">
-              {optimizedResume.changesSummary.map((change, index) => (
-                <li key={index}>{change}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4 w-full justify-end">
-            <Button variant="outline" onClick={onBack}>
-              Back to Analysis
-          </Button>
-            <Button onClick={() => {}}>
-              Download Resume
-            </Button>
-            <Button variant="ghost" onClick={onReset}>
-              Start Over
-            </Button>
-          </div>
-        </CardFooter>
-      </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 bg-white shadow-lg rounded-xl p-2">
+          <TabsTrigger value="resume" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">Enhanced Resume</TabsTrigger>
+          <TabsTrigger value="changes" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">Key Changes</TabsTrigger>
+        </TabsList>
+
+        {/* Enhanced Resume Tab */}
+        <TabsContent value="resume">
+          <Card className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50">
+              <CardTitle className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                Your Professionally Enhanced Resume
+              </CardTitle>
+              <CardDescription>
+                Ready to download and use for your job applications
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="max-h-[800px] overflow-y-auto p-6 bg-white border-t">
+                <div className="prose prose-lg max-w-none">
+                  <ReactMarkdown>{optimizedResume.markdown}</ReactMarkdown>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="bg-gray-50 flex justify-between">
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={onBack}>
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Back to Analysis
+                </Button>
+                <Button variant="ghost" onClick={onReset}>
+                  Start Over
+                </Button>
+              </div>
+              <Button onClick={onDownload} className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Download Enhanced Resume
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        {/* Key Changes Tab */}
+        <TabsContent value="changes">
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle>Key Improvements Made</CardTitle>
+              <CardDescription>
+                Summary of the major enhancements applied to your resume
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {optimizedResume.changes_summary.map((change, index) => (
+                  <div key={index} className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg">
+                    <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-blue-600 font-semibold text-sm">{index + 1}</span>
+                    </div>
+                    <p className="text-gray-700">{change}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -463,389 +473,766 @@ function ResultsView({
   onReset: () => void;
   onOptimize: () => void;
 }) {
-  // Create a type-safe accessor for section analysis
-  const getSectionAnalysis = (sectionName: string): any => {
-    if (result.sectionAnalysis && result.sectionAnalysis[sectionName]) {
-      return result.sectionAnalysis[sectionName];
-    }
-    return null;
-  };
-  
-  const summarySection = getSectionAnalysis('summary');
-  const experienceSection = getSectionAnalysis('experience');
-  
   return (
-    <div className="pb-16">
-      <div className="relative bg-gradient-to-r from-blue-600 to-indigo-700 py-16 px-4 mb-10 rounded-xl text-white">
-        <div className="max-w-4xl mx-auto relative z-10">
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            <div className="mb-6 md:mb-0">
-              <h1 className="text-4xl font-bold mb-2">Resume Analysis</h1>
-              <p className="text-xl text-blue-100">
-                {result.jobTitle} • {result.industry} Industry
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      {/* Hero Section with Overall Score */}
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 text-white py-16">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
+            <div className="flex-1">
+              <h1 className="text-4xl lg:text-5xl font-bold mb-4">Resume Analysis Complete</h1>
+              <p className="text-xl text-blue-100 mb-2">
+                {result.target_job_title} • {result.target_industry} Industry
               </p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <div className="bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 flex items-center">
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 12L11 14L15 10M12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Overall Score: {result.overallScore}%</span>
+              <p className="text-lg text-blue-200 mb-6">
+                Analysis Date: {new Date(result.analysis_date).toLocaleDateString()}
+              </p>
+              
+              {/* Quick Score Overview */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold">{result.ats_score || 0}%</div>
+                  <div className="text-sm text-blue-200">ATS Score</div>
                 </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 flex items-center">
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>ATS Score: {result.atsScore}%</span>
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold">{result.content_score || 0}%</div>
+                  <div className="text-sm text-blue-200">Content</div>
                 </div>
-                <div className="bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 flex items-center">
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>Content Score: {result.contentScore}%</span>
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold">{result.format_score || 0}%</div>
+                  <div className="text-sm text-blue-200">Format</div>
+                </div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center">
+                  <div className="text-2xl font-bold">{result.impact_score || 0}%</div>
+                  <div className="text-sm text-blue-200">Impact</div>
                 </div>
               </div>
             </div>
-            <div className="w-48 h-48 relative">
-              <svg viewBox="0 0 36 36" className="w-full h-full">
-                <path 
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="#E2E8F0"
-                  strokeWidth="3"
-                  strokeDasharray="100, 100"
-                />
-                <path 
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="#4ade80"
-                  strokeWidth="3"
-                  strokeDasharray={`${result.overallScore}, 100`}
-                  strokeLinecap="round"
-                />
-                <text x="18" y="18" textAnchor="middle" dominantBaseline="middle" className="text-3xl font-bold fill-white">
-                  {result.overallScore}%
-                </text>
-                <text x="18" y="23" textAnchor="middle" dominantBaseline="middle" className="text-xs fill-white">
-                  Overall Score
-                </text>
-              </svg>
+            
+            {/* Overall Score Circle */}
+            <div className="flex-shrink-0">
+              <div className="relative w-48 h-48">
+                <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+                  <path 
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="rgba(255,255,255,0.2)"
+                    strokeWidth="3"
+                  />
+                  <path 
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="3"
+                    strokeDasharray={`${result.overall_score || 0}, 100`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="text-4xl font-bold">{result.overall_score || 0}%</div>
+                  <div className="text-sm text-blue-200">Overall Score</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -right-10 -top-10 w-40 h-40 bg-blue-400/30 rounded-full blur-xl"></div>
-          <div className="absolute left-1/4 bottom-5 w-60 h-60 bg-indigo-400/20 rounded-full blur-xl"></div>
-        </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full sm:w-auto sm:inline-grid sm:grid-cols-5 mb-8">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="ats">ATS Compatibility</TabsTrigger>
-            <TabsTrigger value="content">Content Analysis</TabsTrigger>
-            <TabsTrigger value="sections">Section Feedback</TabsTrigger>
-            <TabsTrigger value="examples">Improvement Examples</TabsTrigger>
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-6 py-12">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-6 bg-white shadow-lg rounded-xl p-2">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">Overview</TabsTrigger>
+            <TabsTrigger value="ats" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">ATS Analysis</TabsTrigger>
+            <TabsTrigger value="content" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">Content</TabsTrigger>
+            <TabsTrigger value="format" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">Format</TabsTrigger>
+            <TabsTrigger value="impact" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">Impact</TabsTrigger>
+            <TabsTrigger value="improvements" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">Improvements</TabsTrigger>
           </TabsList>
           
+          {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Resume Analysis Summary</CardTitle>
-                <CardDescription>Here's how your resume performs across key dimensions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Overall Feedback */}
+              <Card className="shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-3.707-8.293a1 1 0 011.414 0L10 10.586 11.707 8.879a1 1 0 111.414 1.414l-2 2a1 1 0 01-1.414 0l-2-2a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    Overall Assessment
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="prose prose-sm max-w-none">
+                    {(result.overall_feedback || "No overall feedback available.").split('\n').map((paragraph, index) => (
+                      <p key={index} className="mb-4 text-gray-700 leading-relaxed">
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Industry Benchmark */}
+              <Card className="shadow-lg">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    Industry Benchmark
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
+                    <span className="font-medium">Industry Ranking</span>
+                    <span className="text-2xl font-bold text-blue-600">{result.industry_benchmark?.percentile_ranking || 0}th percentile</span>
+                  </div>
+                  
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Score Breakdown</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <ScoreCard 
-                        title="ATS Compatibility" 
-                        score={result.atsScore} 
-                        description="How well your resume will be parsed by Applicant Tracking Systems"
-                        icon={
-                          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        }
-                      />
-                      <ScoreCard 
-                        title="Content Quality" 
-                        score={result.contentScore} 
-                        description="The strength and impact of your resume content"
-                        icon={
-                          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        }
-                      />
-                      <ScoreCard 
-                        title="Format & Structure" 
-                        score={result.formatScore} 
-                        description="The organization and layout of your resume"
-                        icon={
-                          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        }
-                      />
-                    </div>
+                    <h4 className="font-semibold mb-2 text-green-700">Competitive Advantages</h4>
+                    <ul className="space-y-1">
+                      {(result.industry_benchmark?.competitive_advantages || []).map((advantage, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-green-500 mt-1">✓</span>
+                          <span className="text-sm">{advantage}</span>
+                        </li>
+                      ))}
+                      {(!result.industry_benchmark?.competitive_advantages || result.industry_benchmark.competitive_advantages.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No competitive advantages identified</li>
+                      )}
+                    </ul>
                   </div>
                   
-                  <div className="pt-4 border-t">
-                    <h3 className="text-lg font-semibold mb-4">Industry Benchmark</h3>
-                    {result.industryBenchmark ? (
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-blue-800 mb-2">
-                        <span className="font-bold">Your Resume vs. Others in {result.industry}:</span> {result.industryBenchmark.overallRanking}
-                      </p>
-                      <p className="text-blue-800 mb-2">
-                        <span className="font-bold">Top Area for Improvement:</span> {result.industryBenchmark.topAreaForImprovement}
-                      </p>
-                      <p className="text-blue-800">
-                        <span className="font-bold">Your Competitive Edge:</span> {result.industryBenchmark.competitiveEdge}
-                      </p>
-                    </div>
-                    ) : (
-                      <div className="bg-gray-50 p-4 rounded-lg text-gray-600">
-                        <p>Industry benchmark data is not available.</p>
-                      </div>
-                    )}
+                  <div>
+                    <h4 className="font-semibold mb-2 text-orange-700">Improvement Priorities</h4>
+                    <ul className="space-y-1">
+                      {(result.industry_benchmark?.improvement_priorities || []).map((priority, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-orange-500 mt-1">→</span>
+                          <span className="text-sm">{priority}</span>
+                        </li>
+                      ))}
+                      {(!result.industry_benchmark?.improvement_priorities || result.industry_benchmark.improvement_priorities.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No improvement priorities identified</li>
+                      )}
+                    </ul>
                   </div>
-                  
-                  <div className="pt-4 border-t">
-                    <h3 className="text-lg font-semibold mb-4">Keywords Analysis</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Matched Keywords</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {result.keywordMatch?.matched?.map((keyword: string, index: number) => (
-                            <div key={index} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                              {keyword}
-                            </div>
-                          )) || <div className="text-gray-500 text-xs">No matched keywords found</div>}
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Missing Keywords</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {result.keywordMatch?.missing?.map((keyword: string, index: number) => (
-                            <div key={index} className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">
-                              {keyword}
-                            </div>
-                          )) || <div className="text-gray-500 text-xs">No missing keywords found</div>}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-4 text-sm text-gray-600">
-                      <p className="font-medium">Recommendations:</p>
-                      <ul className="list-disc list-inside space-y-1 mt-1">
-                        {result.keywordMatch?.recommendations?.map((rec: string, index: number) => (
-                          <li key={index}>{rec}</li>
-                        )) || <li className="text-gray-500">No recommendations available</li>}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="ats" className="space-y-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>ATS Compatibility</CardTitle>
-                <CardDescription>Issues that may prevent your resume from being properly parsed by Applicant Tracking Systems</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {result.atsIssues?.map((issue: any, index: number) => (
-                    <div key={index} className="border-b pb-6 last:border-b-0 last:pb-0">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold text-gray-900">{issue.type}</h3>
-                        <span className={`text-xs font-medium px-2 py-1 rounded ${
-                          issue.impact === 'High' 
-                            ? 'bg-red-100 text-red-800' 
-                            : issue.impact === 'Medium'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {issue.impact} Impact
-                        </span>
-                      </div>
-                      <p className="text-gray-700 mb-3">{issue.issue}</p>
-                      <div className="bg-gray-50 p-3 rounded text-sm border-l-4 border-blue-500">
-                        <span className="font-medium">Solution:</span> {issue.solution}
-                      </div>
-                    </div>
-                  ))}
-                  {(!result.atsIssues || result.atsIssues.length === 0) && (
-                    <div className="text-center py-10">
-                      <p className="text-gray-500">No ATS issues detected.</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="content" className="space-y-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Content Analysis</CardTitle>
-                <CardDescription>Issues with the language and impact of your resume content</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {result.contentIssues?.map((issue: any, index: number) => (
-                    <div key={index} className="border-b pb-6 last:border-b-0 last:pb-0">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold text-gray-900">{issue.type}</h3>
-                        <span className="text-xs font-medium px-2 py-1 rounded bg-yellow-100 text-yellow-800">
-                          {issue.instances} Instances Found
-                        </span>
-                      </div>
-                      <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Examples Found:</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                          {issue.examples?.map((example: string, i: number) => (
-                            <li key={i}><span className="text-red-500 font-mono">{example}</span></li>
-                          )) || <li className="text-gray-500">No examples available</li>}
-                        </ul>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Recommendations:</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                          {issue.recommendations?.map((rec: string, i: number) => (
-                            <li key={i}>{rec}</li>
-                          )) || <li className="text-gray-500">No recommendations available</li>}
-                        </ul>
-                      </div>
-                    </div>
-                  ))}
-                  {(!result.contentIssues || result.contentIssues.length === 0) && (
-                    <div className="text-center py-10">
-                      <p className="text-gray-500">No content issues detected.</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="sections" className="space-y-8">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Section-by-Section Feedback</h2>
-              <div className="space-y-6">
-                {result.sectionAnalysis && Object.entries(result.sectionAnalysis).map(([key, section]: [string, any]) => (
-                  <Card key={key} className="overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className={`px-6 py-4 border-b flex justify-between items-center ${
-                        section.score >= 85 ? 'bg-green-50 border-green-100' :
-                        section.score >= 70 ? 'bg-yellow-50 border-yellow-100' :
-                        'bg-red-50 border-red-100'
-                      }`}>
-                        <h3 className="font-semibold text-gray-900 capitalize">{key}</h3>
-                        <div className="flex items-center">
-                          <span className={`text-sm font-medium mr-2 ${
-                            section.score >= 85 ? 'text-green-700' :
-                            section.score >= 70 ? 'text-yellow-700' :
-                            'text-red-700'
-                          }`}>
-                            Score: {section.score}%
-                          </span>
-                          <div className="w-12 h-12 relative">
-                            <svg viewBox="0 0 36 36" className="w-full h-full">
-                              <path 
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke="#E2E8F0"
-                                strokeWidth="3"
-                                strokeDasharray="100, 100"
-                              />
-                              <path 
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke={
-                                  section.score >= 85 ? '#10b981' :
-                                  section.score >= 70 ? '#f59e0b' :
-                                  '#ef4444'
-                                }
-                                strokeWidth="3"
-                                strokeDasharray={`${section.score}, 100`}
-                                strokeLinecap="round"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="p-6">
-                        <p className="text-gray-700 mb-4">{section.feedback}</p>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Suggestions:</h4>
-                        <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                          {section.suggestions && section.suggestions.map((suggestion: string, index: number) => (
-                            <li key={index}>{suggestion}</li>
-                          ))}
-                          {(!section.suggestions || section.suggestions.length === 0) && 
-                            <li className="text-gray-500">No suggestions available</li>
-                          }
-                        </ul>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {(!result.sectionAnalysis || Object.keys(result.sectionAnalysis).length === 0) && (
-                  <div className="text-center py-10">
-                    <p className="text-gray-500">No section information available.</p>
-                  </div>
-                )}
-              </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Score Breakdown Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <ScoreCard 
+                title="ATS Compatibility" 
+                score={result.ats_score || 0} 
+                description="How well your resume passes through Applicant Tracking Systems"
+                icon={
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                }
+                color="blue"
+              />
+              <ScoreCard 
+                title="Content Quality" 
+                score={result.content_score || 0} 
+                description="The strength and impact of your resume content"
+                icon={
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-6a1 1 0 00-1-1H9a1 1 0 00-1 1v6a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clipRule="evenodd" />
+                  </svg>
+                }
+                color="green"
+              />
+              <ScoreCard 
+                title="Format & Structure" 
+                score={result.format_score || 0} 
+                description="The organization and visual appeal of your resume"
+                icon={
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                  </svg>
+                }
+                color="purple"
+              />
+              <ScoreCard 
+                title="Impact & Effectiveness" 
+                score={result.impact_score || 0} 
+                description="How compelling and memorable your resume is"
+                icon={
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                  </svg>
+                }
+                color="orange"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
+              <Button 
+                onClick={onOptimize}
+                size="lg"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3"
+              >
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+                </svg>
+                Optimize My Resume
+              </Button>
+              <Button 
+                onClick={onReset}
+                variant="outline"
+                size="lg"
+                className="px-8 py-3"
+              >
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                </svg>
+                Start New Analysis
+              </Button>
             </div>
           </TabsContent>
-          
-          <TabsContent value="examples" className="space-y-8">
-            <Card>
+
+          {/* ATS Analysis Tab */}
+          <TabsContent value="ats" className="space-y-6">
+            <Card className="shadow-lg">
               <CardHeader>
-                <CardTitle>Before & After Examples</CardTitle>
-                <CardDescription>See how you can transform your resume content for greater impact</CardDescription>
+                <CardTitle>ATS Compatibility Analysis</CardTitle>
+                <CardDescription>How well your resume performs with Applicant Tracking Systems</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* ATS Score Breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{result.ats_compatibility?.keyword_optimization || 0}%</div>
+                    <div className="text-sm text-gray-600">Keyword Optimization</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{result.ats_compatibility?.format_compatibility || 0}%</div>
+                    <div className="text-sm text-gray-600">Format Compatibility</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">{result.ats_compatibility?.section_structure || 0}%</div>
+                    <div className="text-sm text-gray-600">Section Structure</div>
+                  </div>
+                  <div className="text-center p-4 bg-orange-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">{result.ats_compatibility?.file_format_score || 0}%</div>
+                    <div className="text-sm text-gray-600">File Format</div>
+                  </div>
+                </div>
+
+                {/* Keyword Analysis */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3 text-green-700">Keywords Found ({(result.ats_compatibility?.matched_keywords || []).length})</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {(result.ats_compatibility?.matched_keywords || []).slice(0, 15).map((keyword, index) => (
+                        <span key={index} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                          {keyword}
+                        </span>
+                      ))}
+                      {(result.ats_compatibility?.matched_keywords || []).length > 15 && (
+                        <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
+                          +{(result.ats_compatibility?.matched_keywords || []).length - 15} more
+                        </span>
+                      )}
+                      {(!result.ats_compatibility?.matched_keywords || result.ats_compatibility.matched_keywords.length === 0) && (
+                        <span className="text-sm text-gray-500 italic">No keywords identified</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-red-700">Missing Keywords ({(result.ats_compatibility?.missing_keywords || []).length})</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {(result.ats_compatibility?.missing_keywords || []).slice(0, 15).map((keyword, index) => (
+                        <span key={index} className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">
+                          {keyword}
+                        </span>
+                      ))}
+                      {(result.ats_compatibility?.missing_keywords || []).length > 15 && (
+                        <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
+                          +{(result.ats_compatibility?.missing_keywords || []).length - 15} more
+                        </span>
+                      )}
+                      {(!result.ats_compatibility?.missing_keywords || result.ats_compatibility.missing_keywords.length === 0) && (
+                        <span className="text-sm text-gray-500 italic">No missing keywords identified</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ATS Feedback */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3 text-green-700">ATS Strengths</h4>
+                    <ul className="space-y-2">
+                      {(result.ats_compatibility?.strengths || []).map((strength, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-green-500 mt-1">✓</span>
+                          <span className="text-sm">{strength}</span>
+                        </li>
+                      ))}
+                      {(!result.ats_compatibility?.strengths || result.ats_compatibility.strengths.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No ATS strengths identified</li>
+                      )}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-red-700">ATS Issues</h4>
+                    <ul className="space-y-2">
+                      {(result.ats_compatibility?.issues || []).map((issue, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-red-500 mt-1">✗</span>
+                          <span className="text-sm">{issue}</span>
+                        </li>
+                      ))}
+                      {(!result.ats_compatibility?.issues || result.ats_compatibility.issues.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No ATS issues identified</li>
+                      )}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-blue-700">Recommendations</h4>
+                    <ul className="space-y-2">
+                      {(result.ats_compatibility?.recommendations || []).map((rec, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-blue-500 mt-1">→</span>
+                          <span className="text-sm">{rec}</span>
+                        </li>
+                      ))}
+                      {(!result.ats_compatibility?.recommendations || result.ats_compatibility.recommendations.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No recommendations available</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Content Quality Tab */}
+          <TabsContent value="content" className="space-y-6">
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle>Content Quality Analysis</CardTitle>
+                <CardDescription>Evaluation of your resume's content strength and impact</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Content Score Breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{result.content_quality?.achievement_focus || 0}%</div>
+                    <div className="text-sm text-gray-600">Achievement Focus</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{result.content_quality?.quantification || 0}%</div>
+                    <div className="text-sm text-gray-600">Quantification</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">{result.content_quality?.action_verbs || 0}%</div>
+                    <div className="text-sm text-gray-600">Action Verbs</div>
+                  </div>
+                  <div className="text-center p-4 bg-orange-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">{result.content_quality?.relevance || 0}%</div>
+                    <div className="text-sm text-gray-600">Relevance</div>
+                  </div>
+                </div>
+
+                {/* Content Examples */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3 text-green-700">Strong Bullet Points</h4>
+                    <ul className="space-y-2">
+                      {(result.content_quality?.strong_bullets || []).slice(0, 5).map((bullet, index) => (
+                        <li key={index} className="p-3 bg-green-50 border-l-4 border-green-400 rounded text-sm">
+                          "{bullet}"
+                        </li>
+                      ))}
+                      {(!result.content_quality?.strong_bullets || result.content_quality.strong_bullets.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No strong bullet points identified</li>
+                      )}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-red-700">Weak Bullet Points</h4>
+                    <ul className="space-y-2">
+                      {(result.content_quality?.weak_bullets || []).slice(0, 5).map((bullet, index) => (
+                        <li key={index} className="p-3 bg-red-50 border-l-4 border-red-400 rounded text-sm">
+                          "{bullet}"
+                        </li>
+                      ))}
+                      {(!result.content_quality?.weak_bullets || result.content_quality.weak_bullets.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No weak bullet points identified</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Content Feedback */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3 text-green-700">Content Strengths</h4>
+                    <ul className="space-y-2">
+                      {(result.content_quality?.strengths || []).map((strength, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-green-500 mt-1">✓</span>
+                          <span className="text-sm">{strength}</span>
+                        </li>
+                      ))}
+                      {(!result.content_quality?.strengths || result.content_quality.strengths.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No content strengths identified</li>
+                      )}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-red-700">Content Weaknesses</h4>
+                    <ul className="space-y-2">
+                      {(result.content_quality?.weaknesses || []).map((weakness, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-red-500 mt-1">✗</span>
+                          <span className="text-sm">{weakness}</span>
+                        </li>
+                      ))}
+                      {(!result.content_quality?.weaknesses || result.content_quality.weaknesses.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No content weaknesses identified</li>
+                      )}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-blue-700">Recommendations</h4>
+                    <ul className="space-y-2">
+                      {(result.content_quality?.recommendations || []).map((rec, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-blue-500 mt-1">→</span>
+                          <span className="text-sm">{rec}</span>
+                        </li>
+                      ))}
+                      {(!result.content_quality?.recommendations || result.content_quality.recommendations.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No recommendations available</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Format & Structure Tab */}
+          <TabsContent value="format" className="space-y-6">
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle>Format & Structure Analysis</CardTitle>
+                <CardDescription>Evaluation of your resume's visual design and organization</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Format Score Breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{result.format_structure?.visual_hierarchy || 0}%</div>
+                    <div className="text-sm text-gray-600">Visual Hierarchy</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{result.format_structure?.consistency || 0}%</div>
+                    <div className="text-sm text-gray-600">Consistency</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">{result.format_structure?.readability || 0}%</div>
+                    <div className="text-sm text-gray-600">Readability</div>
+                  </div>
+                  <div className="text-center p-4 bg-orange-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">{result.format_structure?.length_appropriateness || 0}%</div>
+                    <div className="text-sm text-gray-600">Length Appropriateness</div>
+                  </div>
+                </div>
+
+                {/* Format Feedback */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3 text-green-700">Format Strengths</h4>
+                    <ul className="space-y-2">
+                      {(result.format_structure?.strengths || []).map((strength, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-green-500 mt-1">✓</span>
+                          <span className="text-sm">{strength}</span>
+                        </li>
+                      ))}
+                      {(!result.format_structure?.strengths || result.format_structure.strengths.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No format strengths identified</li>
+                      )}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-red-700">Format Issues</h4>
+                    <ul className="space-y-2">
+                      {(result.format_structure?.issues || []).map((issue, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-red-500 mt-1">✗</span>
+                          <span className="text-sm">{issue}</span>
+                        </li>
+                      ))}
+                      {(!result.format_structure?.issues || result.format_structure.issues.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No format issues identified</li>
+                      )}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-blue-700">Recommendations</h4>
+                    <ul className="space-y-2">
+                      {(result.format_structure?.recommendations || []).map((rec, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-blue-500 mt-1">→</span>
+                          <span className="text-sm">{rec}</span>
+                        </li>
+                      ))}
+                      {(!result.format_structure?.recommendations || result.format_structure.recommendations.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No recommendations available</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Impact & Effectiveness Tab */}
+          <TabsContent value="impact" className="space-y-6">
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle>Impact & Effectiveness Analysis</CardTitle>
+                <CardDescription>How compelling and memorable your resume is to hiring managers</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Impact Score Breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{result.impact_effectiveness?.first_impression || 0}%</div>
+                    <div className="text-sm text-gray-600">First Impression</div>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{result.impact_effectiveness?.differentiation || 0}%</div>
+                    <div className="text-sm text-gray-600">Differentiation</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">{result.impact_effectiveness?.value_proposition || 0}%</div>
+                    <div className="text-sm text-gray-600">Value Proposition</div>
+                  </div>
+                  <div className="text-center p-4 bg-orange-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">{result.impact_effectiveness?.memorability || 0}%</div>
+                    <div className="text-sm text-gray-600">Memorability</div>
+                  </div>
+                </div>
+
+                {/* Impact Feedback */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3 text-green-700">Impact Strengths</h4>
+                    <ul className="space-y-2">
+                      {(result.impact_effectiveness?.strengths || []).map((strength, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-green-500 mt-1">✓</span>
+                          <span className="text-sm">{strength}</span>
+                        </li>
+                      ))}
+                      {(!result.impact_effectiveness?.strengths || result.impact_effectiveness.strengths.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No impact strengths identified</li>
+                      )}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-red-700">Impact Weaknesses</h4>
+                    <ul className="space-y-2">
+                      {(result.impact_effectiveness?.weaknesses || []).map((weakness, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-red-500 mt-1">✗</span>
+                          <span className="text-sm">{weakness}</span>
+                        </li>
+                      ))}
+                      {(!result.impact_effectiveness?.weaknesses || result.impact_effectiveness.weaknesses.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No impact weaknesses identified</li>
+                      )}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold mb-3 text-blue-700">Recommendations</h4>
+                    <ul className="space-y-2">
+                      {(result.impact_effectiveness?.recommendations || []).map((rec, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-blue-500 mt-1">→</span>
+                          <span className="text-sm">{rec}</span>
+                        </li>
+                      ))}
+                      {(!result.impact_effectiveness?.recommendations || result.impact_effectiveness.recommendations.length === 0) && (
+                        <li className="text-sm text-gray-500 italic">No recommendations available</li>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Improvements Tab */}
+          <TabsContent value="improvements" className="space-y-6">
+            {/* Quick Wins */}
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  Quick Wins - Implement This Week
+                </CardTitle>
+                <CardDescription>Easy improvements with high impact potential</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-8">
-                  {summarySection?.beforeExample && (
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-gray-900">Professional Summary</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                          <div className="text-sm font-medium text-gray-500 mb-2">Before:</div>
-                          <div className="text-gray-700">{summarySection.beforeExample}</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(result.quick_wins || []).map((win, index) => (
+                    <div key={index} className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
                         </div>
-                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                          <div className="text-sm font-medium text-green-600 mb-2">After:</div>
-                          <div className="text-gray-700">{summarySection.afterExample}</div>
+                        <p className="text-sm text-gray-700">{win}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {(!result.quick_wins || result.quick_wins.length === 0) && (
+                    <div className="col-span-2 text-center text-gray-500 italic py-8">
+                      No quick wins identified
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Critical Improvements */}
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  Critical Improvements - High Priority
+                </CardTitle>
+                <CardDescription>Essential changes that will significantly impact your success rate</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {(result.critical_improvements || []).map((improvement, index) => (
+                    <div key={index} className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </div>
+                        <p className="text-sm text-gray-700">{improvement}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {(!result.critical_improvements || result.critical_improvements.length === 0) && (
+                    <div className="text-center text-gray-500 italic py-8">
+                      No critical improvements identified
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Bullet Point Improvements */}
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle>Bullet Point Improvements</CardTitle>
+                <CardDescription>Specific examples of how to enhance your bullet points</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {(result.bullet_improvements || []).slice(0, 5).map((improvement, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                          Example {index + 1}
+                        </span>
+                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                          +{improvement.impact_increase || 0}% Impact
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="p-3 bg-red-50 border-l-4 border-red-400 rounded">
+                          <p className="text-sm font-medium text-red-800 mb-1">Before:</p>
+                          <p className="text-sm text-gray-700">"{improvement.original || 'No original text available'}"</p>
+                        </div>
+                        
+                        <div className="p-3 bg-green-50 border-l-4 border-green-400 rounded">
+                          <p className="text-sm font-medium text-green-800 mb-1">After:</p>
+                          <p className="text-sm text-gray-700">"{improvement.improved || 'No improved text available'}"</p>
+                        </div>
+                        
+                        <div className="p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
+                          <p className="text-sm font-medium text-blue-800 mb-1">Why it's better:</p>
+                          <p className="text-sm text-gray-700">{improvement.explanation || 'No explanation available'}</p>
                         </div>
                       </div>
                     </div>
+                  ))}
+                  {(!result.bullet_improvements || result.bullet_improvements.length === 0) && (
+                    <div className="text-center text-gray-500 italic py-8">
+                      No bullet point improvements available
+                    </div>
                   )}
-                  
-                  {experienceSection?.bulletPoints && (
-                    <div className="space-y-4 pt-6 border-t">
-                      <h3 className="font-semibold text-gray-900">Work Experience Bullet Points</h3>
-                      <div className="space-y-6">
-                        {experienceSection.bulletPoints.map((bullet: any, index: number) => (
-                          <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                              <div className="text-sm font-medium text-gray-500 mb-2">Before:</div>
-                              <div className="text-gray-700">{bullet.before}</div>
-                            </div>
-                            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                              <div className="text-sm font-medium text-green-600 mb-2">After:</div>
-                              <div className="text-gray-700">{bullet.after}</div>
-                            </div>
-                          </div>
-                        ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Strengths */}
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  Your Top Strengths
+                </CardTitle>
+                <CardDescription>What makes your resume competitive</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(result.top_strengths || []).map((strength, index) => (
+                    <div key={index} className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </div>
+                        <p className="text-sm text-gray-700">{strength}</p>
                       </div>
+                    </div>
+                  ))}
+                  {(!result.top_strengths || result.top_strengths.length === 0) && (
+                    <div className="col-span-2 text-center text-gray-500 italic py-8">
+                      No top strengths identified
                     </div>
                   )}
                 </div>
@@ -853,73 +1240,74 @@ function ResultsView({
             </Card>
           </TabsContent>
         </Tabs>
-
-        <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
-          <Button variant="outline" size="lg" className="gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-            Download Report
-          </Button>
-          <Button size="lg" className="gap-2" onClick={onOptimize}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-            </svg>
-            Get Enhanced Resume
-          </Button>
-          <Button variant="ghost" size="lg" onClick={onReset} className="gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-            </svg>
-            Analyze New Resume
-          </Button>
-        </div>
       </div>
     </div>
   );
 }
 
-// Component for score display cards
+// Score Card Component for displaying individual scores
 function ScoreCard({ 
   title, 
   score, 
-  description,
-  icon
+  description, 
+  icon, 
+  color = "blue" 
 }: { 
-  title: string;
-  score: number;
-  description: string;
-  icon: React.ReactNode;
+  title: string; 
+  score: number; 
+  description: string; 
+  icon: React.ReactNode; 
+  color?: string;
 }) {
-  // Define color based on score
-  const getColor = () => {
-    if (score >= 85) return 'green';
-    if (score >= 70) return 'yellow';
-    return 'red';
+  const getColorClasses = (color: string, score: number) => {
+    const baseClasses = {
+      blue: "from-blue-500 to-blue-600 bg-blue-50 text-blue-600",
+      green: "from-green-500 to-green-600 bg-green-50 text-green-600", 
+      purple: "from-purple-500 to-purple-600 bg-purple-50 text-purple-600",
+      orange: "from-orange-500 to-orange-600 bg-orange-50 text-orange-600",
+      red: "from-red-500 to-red-600 bg-red-50 text-red-600"
+    };
+    
+    // Determine color based on score if not specified
+    if (score >= 85) return baseClasses.green;
+    if (score >= 70) return baseClasses.blue;
+    if (score >= 50) return baseClasses.orange;
+    return baseClasses.red;
   };
-  
-  const color = getColor();
-  
+
+  const colorClasses = getColorClasses(color, score);
+  const [gradientFrom, gradientTo, bgClass, textClass] = colorClasses.split(' ');
+
   return (
-    <div className={`bg-${color}-50 p-4 rounded-lg border border-${color}-100`}>
-      <div className="flex items-start">
-        <div className={`p-2 rounded-full bg-${color}-100 text-${color}-700 mr-3`}>
-          {icon}
-        </div>
-        <div>
-          <h4 className="font-medium text-gray-900">{title}</h4>
-          <div className="flex items-center mt-1 mb-2">
-            <div className={`text-${color}-700 font-bold text-lg mr-2`}>{score}%</div>
-            <div className={`w-full h-2 bg-gray-200 rounded-full overflow-hidden flex-1`}>
-              <div 
-                className={`h-full bg-${color}-500 rounded-full`}
-                style={{ width: `${score}%` }}
-              />
+    <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className={`w-12 h-12 rounded-full ${bgClass} flex items-center justify-center`}>
+            <div className={textClass}>
+              {icon}
             </div>
           </div>
-          <p className="text-xs text-gray-600">{description}</p>
+          <div className="text-right">
+            <div className="text-3xl font-bold text-gray-900">{score}%</div>
+            <div className="text-sm text-gray-500">Score</div>
+          </div>
         </div>
-      </div>
-    </div>
+        
+        <div className="space-y-2">
+          <h3 className="font-semibold text-gray-900">{title}</h3>
+          <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+        </div>
+        
+        {/* Progress bar */}
+        <div className="mt-4">
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className={`h-2 rounded-full bg-gradient-to-r ${gradientFrom} ${gradientTo} transition-all duration-500`}
+              style={{ width: `${score}%` }}
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 } 

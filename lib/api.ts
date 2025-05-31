@@ -11,6 +11,18 @@ import {
   ProjectRecommendation,
   SkillLearningResources,
 } from "./models/skill-gap";
+import { hasToken } from './auth';
+import { 
+  ResumeAnalysisResult, 
+  OptimizedResumeResult,
+  SimpleOptimizedResumeResult,
+  ATSCompatibilityScore,
+  ContentQualityScore,
+  FormatStructureScore,
+  ImpactScore as ResumeImpactScore,
+  BulletPointExample,
+  IndustryBenchmark as ResumeIndustryBenchmark
+} from './models/resume-analysis';
 
 // Resume types
 export interface Resume {
@@ -28,7 +40,22 @@ export interface ResumeListResponse {
   total: number;
 }
 
-// Resume analysis types
+// Re-export the updated interfaces with proper type exports
+export type { 
+  ResumeAnalysisResult, 
+  OptimizedResumeResult,
+  SimpleOptimizedResumeResult,
+  ATSCompatibilityScore,
+  ContentQualityScore,
+  FormatStructureScore,
+  BulletPointExample
+} from './models/resume-analysis';
+
+// Rename conflicting types
+export type ResumeImpactScoreType = ResumeImpactScore;
+export type ResumeIndustryBenchmarkType = ResumeIndustryBenchmark;
+
+// Legacy interfaces for backward compatibility
 export interface SectionAnalysis {
   score: number;
   feedback: string;
@@ -148,7 +175,8 @@ export interface ATSScore {
   suggestions: string[];
 }
 
-export interface ResumeAnalysisResult {
+// Legacy interface - keeping for backward compatibility
+export interface LegacyResumeAnalysisResult {
   impact: ImpactScore;
   brevity: BrevityScore;
   style: StyleScore;
@@ -172,12 +200,6 @@ export interface ResumeAnalysisResult {
   keywordMatch: KeywordAnalysis;
   contentIssues: ContentIssue[];
   industryBenchmark: IndustryBenchmark;
-}
-
-export interface OptimizedResumeResult {
-  markdown: string;
-  changesSummary: string[];
-  improvementScore: number;
 }
 
 // Define API base URL
@@ -460,21 +482,12 @@ export const skillGapApi = {
 
   // Analyze resume for ATS optimization (part of Resume Enhancement)
   analyzeResume: async (
-    resumeFile: File | null,
-    resumeId: string | null,
+    resumeId: string,
     jobTitle: string,
     industry: string
   ): Promise<ResumeAnalysisResult> => {
     const formData = new FormData();
-
-    if (resumeFile) {
-      formData.append("resume_file", resumeFile);
-    }
-
-    if (resumeId) {
-      formData.append("resume_id", resumeId);
-    }
-
+    formData.append("resume_id", resumeId);
     formData.append("job_title", jobTitle);
     formData.append("industry", industry);
 
@@ -488,6 +501,13 @@ export const skillGapApi = {
     const url = `${API_BASE_URL}/resume/analyze`;
 
     try {
+      console.log("Making resume analysis request to:", url);
+      console.log("FormData contents:", {
+        resumeId,
+        jobTitle,
+        industry
+      });
+
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -507,7 +527,20 @@ export const skillGapApi = {
         throw new Error(errorMsg);
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log("Resume analysis response received:", result);
+      console.log("Response structure check:", {
+        hasOverallScore: 'overall_score' in result,
+        hasOverallFeedback: 'overall_feedback' in result,
+        hasATSCompatibility: 'ats_compatibility' in result,
+        hasContentQuality: 'content_quality' in result,
+        hasFormatStructure: 'format_structure' in result,
+        hasImpactEffectiveness: 'impact_effectiveness' in result,
+        hasIndustryBenchmark: 'industry_benchmark' in result,
+        topLevelKeys: Object.keys(result)
+      });
+
+      return result;
     } catch (error) {
       console.error("API Error for resume analysis:", error);
       throw error;
@@ -516,22 +549,13 @@ export const skillGapApi = {
 
   // Optimize resume based on analysis
   optimizeResume: async (
-    resumeFile: File | null,
-    resumeId: string | null,
+    resumeId: string,
     jobTitle: string,
     industry: string,
     analysisResult?: ResumeAnalysisResult
-  ): Promise<OptimizedResumeResult> => {
+  ): Promise<SimpleOptimizedResumeResult> => {
     const formData = new FormData();
-
-    if (resumeFile) {
-      formData.append("resume_file", resumeFile);
-    }
-
-    if (resumeId) {
-      formData.append("resume_id", resumeId);
-    }
-
+    formData.append("resume_id", resumeId);
     formData.append("job_title", jobTitle);
     formData.append("industry", industry);
 
@@ -668,6 +692,19 @@ export const resumeApi = {
     return fetchApi<void>(`/resumes/${id}`, {
       method: "DELETE",
     });
+  },
+};
+
+// Resume analysis API functions
+export const resumeAnalysisApi = {
+  // Get all user's resume analyses
+  getUserAnalyses: async (): Promise<any[]> => {
+    return fetchApi<any[]>("/resume/analyses");
+  },
+
+  // Get specific analysis by ID
+  getAnalysisById: async (id: string): Promise<any> => {
+    return fetchApi<any>(`/resume/analyses/${id}`);
   },
 };
 

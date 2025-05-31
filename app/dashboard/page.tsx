@@ -5,25 +5,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
-import { learningPathsApi, skillGapApi } from "@/lib/api";
+import { learningPathsApi, skillGapApi, resumeAnalysisApi } from "@/lib/api";
 import { LearningPath } from "@/lib/models/learning-path";
-import { mockResumeAnalysis } from "@/lib/models/resume-analysis";
+import { mockResumeAnalysis, ResumeAnalysis } from "@/lib/models/resume-analysis";
 import { SkillGapAnalysis } from "@/lib/models/skill-gap";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
   const [skillAnalyses, setSkillAnalyses] = useState<SkillGapAnalysis[]>([]);
+  const [resumeAnalyses, setResumeAnalyses] = useState<ResumeAnalysis[]>([]);
   const [loadingPaths, setLoadingPaths] = useState(false);
   const [loadingAnalyses, setLoadingAnalyses] = useState(false);
+  const [loadingResume, setLoadingResume] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Fetch user's learning paths and skill gap analyses
+  // Fetch user's learning paths, skill gap analyses, and resume analyses
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         setLoadingPaths(true);
         setLoadingAnalyses(true);
+        setLoadingResume(true);
         
         // Fetch learning paths
         const paths = await learningPathsApi.getUserPaths();
@@ -32,6 +35,42 @@ export default function Dashboard() {
         // Fetch skill gap analyses
         const analyses = await skillGapApi.getAnalysisHistory();
         setSkillAnalyses(analyses);
+        
+        // Fetch resume analyses
+        try {
+          const resumeAnalysisData = await resumeAnalysisApi.getUserAnalyses();
+          
+          // Transform the API response to match our ResumeAnalysis interface
+          const transformedAnalyses = resumeAnalysisData.map((analysis: any) => ({
+            id: analysis.id,
+            userId: analysis.userId,
+            overallScore: analysis.analysis_result?.overall_score || 0,
+            categoryScores: [
+              { category: 'ATS Compatibility', score: analysis.analysis_result?.ats_score || 0 },
+              { category: 'Content Quality', score: analysis.analysis_result?.content_score || 0 },
+              { category: 'Format & Structure', score: analysis.analysis_result?.format_score || 0 },
+              { category: 'Impact & Effectiveness', score: analysis.analysis_result?.impact_score || 0 }
+            ],
+            recommendations: [
+              ...(analysis.analysis_result?.critical_improvements?.slice(0, 3).map((improvement: string) => ({
+                text: improvement,
+                type: 'improvement' as const
+              })) || []),
+              ...(analysis.analysis_result?.top_strengths?.slice(0, 2).map((strength: string) => ({
+                text: strength,
+                type: 'positive' as const
+              })) || [])
+            ],
+            createdAt: new Date(analysis.createdAt)
+          }));
+          
+          setResumeAnalyses(transformedAnalyses);
+        } catch (resumeError) {
+          console.error("Failed to fetch resume analyses:", resumeError);
+          // Fall back to mock data if API fails
+          setResumeAnalyses([mockResumeAnalysis]);
+        }
+        
         console.log("Fetched analyses:", analyses);
       } catch (err) {
         console.error("Failed to fetch user data:", err);
@@ -39,6 +78,7 @@ export default function Dashboard() {
       } finally {
         setLoadingPaths(false);
         setLoadingAnalyses(false);
+        setLoadingResume(false);
       }
     };
 
@@ -46,6 +86,9 @@ export default function Dashboard() {
       fetchUserData();
     }
   }, [user]);
+
+  // Use the most recent analysis or mock data
+  const latestResumeAnalysis = resumeAnalyses.length > 0 ? resumeAnalyses[0] : mockResumeAnalysis;
 
   // Helper function to get status color based on match percentage
   const getStatusColor = (matchPercentage: number): string => {
@@ -104,7 +147,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-3xl font-bold text-orange-500">{mockResumeAnalysis.overallScore}<span className="text-xl">/100</span></p>
+                <p className="text-3xl font-bold text-orange-500">{latestResumeAnalysis.overallScore}<span className="text-xl">/100</span></p>
                 <p className="text-sm text-green-600">+12 from previous</p>
               </div>
               <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-500">
@@ -293,7 +336,7 @@ export default function Dashboard() {
               <div>
                 <h4 className="font-medium mb-3">Category Scores</h4>
                 <div className="space-y-4">
-                  {mockResumeAnalysis.categoryScores.map((category, index) => (
+                  {latestResumeAnalysis.categoryScores.map((category, index) => (
                     <div key={index}>
                       <div className="flex justify-between mb-1">
                         <span className="text-sm font-medium">{category.category}</span>
@@ -313,7 +356,7 @@ export default function Dashboard() {
               <div>
                 <h4 className="font-medium mb-3">Top Recommendations</h4>
                 <ul className="space-y-2">
-                  {mockResumeAnalysis.recommendations.map((recommendation, index) => (
+                  {latestResumeAnalysis.recommendations.map((recommendation, index) => (
                     <li key={index} className="flex items-start">
                       {recommendation.type === 'improvement' ? (
                         <svg className="w-5 h-5 text-orange-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

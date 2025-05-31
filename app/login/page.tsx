@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { Button } from '@/components/ui/button';
@@ -16,10 +16,23 @@ export default function LoginPage() {
   const { login, error, isAuthenticated } = useAuth();
   const router = useRouter();
 
-  // If already authenticated, redirect to dashboard
+  // Handle redirect when authenticated - moved to useEffect to prevent render-time navigation
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, router]);
+
+  // Show loading or nothing while redirecting
   if (isAuthenticated) {
-    router.push('/dashboard');
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
