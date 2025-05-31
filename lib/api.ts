@@ -350,12 +350,12 @@ export const learningPathsApi = {
 
   // Get user's saved learning paths
   getUserPaths: async (): Promise<LearningPath[]> => {
-    return await fetchApi<LearningPath[]>("/learning-path/user");
+    return await fetchApi<LearningPath[]>("/learning-paths/user");
   },
 
   // Get a specific learning path by ID
   getPathById: async (id: string): Promise<LearningPath> => {
-    return await fetchApi<LearningPath>(`/learning-path/${id}`);
+    return await fetchApi<LearningPath>(`/learning-paths/${id}`);
   },
 };
 

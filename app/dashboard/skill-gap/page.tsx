@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { SkillGapAnalysis, SkillMatch, SkillGap, ProjectRecommendation } from '@/lib/models/skill-gap';
+import { SkillGapAnalysis, MatchedSkill, MissingSkill, ProjectRecommendation } from '@/lib/models/skill-gap';
 import { skillGapApi, resumeApi, Resume, ResumeListResponse } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
@@ -561,13 +561,13 @@ export default function SkillGapPage() {
                   {analysisResults.job_posting_url && (
                     <div className="text-sm mb-1">Source: {analysisResults.job_posting_url}</div>
                   )}
-                  Overall Match: {analysisResults.match_percentage.toFixed(0)}% compatibility with job requirements
+                  Overall Match: {analysisResults.match_percentage}% compatibility with job requirements
                 </CardDescription>
               </div>
               <div className="flex items-center">
                 <div className="w-24 h-24 rounded-full bg-white flex items-center justify-center">
                   <div className="text-4xl font-extrabold bg-gradient-to-br from-blue-600 to-indigo-700 text-transparent bg-clip-text">
-                    {analysisResults.match_percentage.toFixed(0)}%
+                    {analysisResults.match_percentage}%
                   </div>
                 </div>
               </div>
@@ -582,43 +582,16 @@ export default function SkillGapPage() {
               
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-green-50 p-4 rounded-md">
-                  <h4 className="font-medium text-green-700 mb-2">Key Strengths</h4>
-                  <ul className="space-y-1">
-                    {analysisResults.matched_skills.slice(0, 3).map((skill, idx) => (
-                      <li key={idx} className="text-sm text-gray-700 flex items-center gap-2">
-                        <span className="text-green-500">✓</span>
-                        {skill.skill}
-                      </li>
-                    ))}
-                  </ul>
+                  <h4 className="font-medium text-green-700 mb-2">Top Strengths</h4>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{analysisResults.top_strengths}</p>
                 </div>
                 <div className="bg-yellow-50 p-4 rounded-md">
-                  <h4 className="font-medium text-yellow-700 mb-2">Areas to Improve</h4>
-                  <ul className="space-y-1">
-                    {analysisResults.missing_skills.slice(0, 3).map((skill, idx) => (
-                      <li key={idx} className="text-sm text-gray-700 flex items-center gap-2">
-                        <span className="text-yellow-500">!</span>
-                        {skill.skill}
-                      </li>
-                    ))}
-                  </ul>
+                  <h4 className="font-medium text-yellow-700 mb-2">Biggest Gaps</h4>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{analysisResults.biggest_gaps}</p>
                 </div>
                 <div className="bg-blue-50 p-4 rounded-md">
-                  <h4 className="font-medium text-blue-700 mb-2">Recommended Actions</h4>
-                  <ul className="space-y-1 text-sm text-gray-700">
-                    <li className="flex items-center gap-2">
-                      <span className="text-blue-500">→</span>
-                      Focus on critical skills first
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-blue-500">→</span>
-                      Complete suggested projects
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-blue-500">→</span>
-                      Update resume with suggestions
-                    </li>
-                  </ul>
+                  <h4 className="font-medium text-blue-700 mb-2">Timeline to Ready</h4>
+                  <p className="text-sm text-gray-700 whitespace-pre-line">{analysisResults.timeline_to_ready}</p>
                 </div>
               </div>
             </div>
@@ -631,13 +604,13 @@ export default function SkillGapPage() {
             <TabsTrigger value="matched">Matched Skills</TabsTrigger>
             <TabsTrigger value="missing">Skill Gaps</TabsTrigger>
             <TabsTrigger value="projects">Project Ideas</TabsTrigger>
-            <TabsTrigger value="improvements">Improvement Tips</TabsTrigger>
+            <TabsTrigger value="next-steps">Next Steps</TabsTrigger>
           </TabsList>
           
           {/* Matched Skills Tab */}
           <TabsContent value="matched" className="mt-6">
             <div className="mb-4 p-4 bg-gray-50 rounded-md text-sm text-gray-700">
-              <p>These skills from your resume match the job requirements. The match score indicates how well your demonstrated experience aligns with what the employer is seeking.</p>
+              <p>These skills from your resume match the job requirements. The evidence shows how your experience aligns with what the employer is seeking.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {analysisResults.matched_skills.map((skill, index) => (
@@ -650,20 +623,18 @@ export default function SkillGapPage() {
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           {skill.level}
                         </span>
-                        <span className="text-xs text-gray-500 mt-1">
-                          Match: {(skill.match_score * 100).toFixed(0)}%
+                        <span className={`text-xs mt-1 ${skill.meets_requirement ? 'text-green-600' : 'text-yellow-600'}`}>
+                          {skill.meets_requirement ? '✓ Meets requirement' : '⚠ Partial match'}
                         </span>
                       </div>
                     </div>
                   </CardHeader>
-                  {skill.context && (
-                    <CardContent className="pt-0">
-                      <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-700 border-l-2 border-green-300">
-                        <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-1">From your resume:</h4>
-                        <p className="italic">"{skill.context}"</p>
-                      </div>
-                    </CardContent>
-                  )}
+                  <CardContent className="pt-0">
+                    <div className="bg-gray-50 p-3 rounded-md text-sm text-gray-700 border-l-2 border-green-300">
+                      <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-1">Evidence from your resume:</h4>
+                      <p className="italic">"{skill.evidence}"</p>
+                    </div>
+                  </CardContent>
                 </Card>
               ))}
             </div>
@@ -699,42 +670,21 @@ export default function SkillGapPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="pb-4">
-                    <p className="text-gray-700 text-sm mb-4 border-l-2 border-gray-200 pl-3">{skill.description}</p>
                     <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-blue-500">
-                          <path d="M10.75 16.82A7.462 7.462 0 0115 15.5c.71 0 1.396.098 2.046.282A.75.75 0 0018 15.06v-11a.75.75 0 00-.546-.721A9.006 9.006 0 0015 3a9.006 9.006 0 00-3.5.339.75.75 0 00-.5.707v11.246a.75.75 0 001.25.672zM12.75 3.33v8.73a.75.75 0 01-.287.592 7.47 7.47 0 01-8.654 1.264.75.75 0 01-.509-.706V4.206a.75.75 0 01.553-.72 8.958 8.958 0 013.897-.36.75.75 0 01.503.397.75.75 0 001.38-.442 2.25 2.25 0 013.117-.905z" />
-                        </svg>
-                        Learning Resources:
-                      </h4>
-                      <div className="rounded-md border border-gray-200 overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resource</th>
-                              <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {skill.learning_resources.map((resource, i) => (
-                              <tr key={i}>
-                                <td className="px-3 py-2 whitespace-nowrap text-sm">
-                                  <a 
-                                    href={resource.url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline flex items-center"
-                                  >
-                                    {resource.title}
-                                  </a>
-                                </td>
-                                <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
-                                  {resource.type}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 mb-2">Why this skill is needed:</h4>
+                        <p className="text-gray-700 text-sm border-l-2 border-gray-200 pl-3">{skill.why_needed}</p>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-blue-500">
+                            <path d="M10.75 16.82A7.462 7.462 0 0115 15.5c.71 0 1.396.098 2.046.282A.75.75 0 0018 15.06v-11a.75.75 0 00-.546-.721A9.006 9.006 0 0015 3a9.006 9.006 0 00-3.5.339.75.75 0 00-.5.707v11.246a.75.75 0 001.25.672zM12.75 3.33v8.73a.75.75 0 01-.287.592 7.47 7.47 0 01-8.654 1.264.75.75 0 01-.509-.706V4.206a.75.75 0 01.553-.72 8.958 8.958 0 013.897-.36.75.75 0 01.503.397.75.75 0 001.38-.442 2.25 2.25 0 013.117-.905z" />
+                          </svg>
+                          Learning Path:
+                        </h4>
+                        <div className="bg-blue-50 p-3 rounded-md">
+                          <p className="text-sm text-gray-700 whitespace-pre-line">{skill.learning_path}</p>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -760,7 +710,7 @@ export default function SkillGapPage() {
                           {project.difficulty}
                         </span>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {project.estimated_time}
+                          {project.time_estimate}
                         </span>
                       </div>
                     </div>
@@ -775,37 +725,10 @@ export default function SkillGapPage() {
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-indigo-600">
                           <path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM1.49 15.326a.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 002.07-.654.78.78 0 00.357-.442 3 3 0 00-4.308-3.517 6.484 6.484 0 011.907 3.96 2.32 2.32 0 01-.026.654zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z" />
                         </svg>
-                        Skills Addressed:
+                        Skills You'll Gain:
                       </h4>
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {project.skills_addressed.map((skill, i) => (
-                          <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-indigo-600">
-                          <path fillRule="evenodd" d="M4.25 2A2.25 2.25 0 002 4.25v11.5A2.25 2.25 0 004.25 18h11.5A2.25 2.25 0 0017 15.75V4.25A2.25 2.25 0 0015.75 2H4.25zM15 5.75a.75.75 0 00-1.5 0v8.5a.75.75 0 001.5 0v-8.5zm-8.5 6a.75.75 0 00-1.5 0v2.5a.75.75 0 001.5 0v-2.5zM8.584 9a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5a.75.75 0 01.75-.75zm3.58-1.25a.75.75 0 00-1.5 0v6.5a.75.75 0 001.5 0v-6.5z" clipRule="evenodd" />
-                        </svg>
-                        Resources:
-                      </h4>
-                      <div className="grid grid-cols-1 gap-1 bg-gray-50 p-3 rounded-md">
-                        {project.resources.map((resource, i) => (
-                          <a 
-                            key={i}
-                            href={resource.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:bg-blue-50 hover:underline text-sm px-2 py-1.5 rounded"
-                          >
-                            <span className="inline-block w-14 text-xs text-gray-500">[{resource.type}]</span>
-                            {resource.title}
-                          </a>
-                        ))}
+                      <div className="bg-indigo-50 p-3 rounded-md">
+                        <p className="text-sm text-gray-700">{project.skills_gained}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -814,38 +737,22 @@ export default function SkillGapPage() {
             </div>
           </TabsContent>
           
-          {/* Improvement Tips Tab */}
-          <TabsContent value="improvements" className="mt-6">
+          {/* Next Steps Tab */}
+          <TabsContent value="next-steps" className="mt-6">
             <div className="mb-4 p-4 bg-gray-50 rounded-md text-sm text-gray-700">
-              <p>Use these suggestions to enhance your resume for this specific position. Implementing these changes could significantly increase your match rate and chances of getting an interview.</p>
+              <p>Follow these actionable steps to improve your candidacy for this position. These recommendations are tailored specifically to your current skill level and the job requirements.</p>
             </div>
             <Card>
               <CardHeader>
-                <CardTitle className="text-xl font-bold">Resume Improvement Suggestions</CardTitle>
+                <CardTitle className="text-xl font-bold">Immediate Action Plan</CardTitle>
                 <CardDescription>
-                  Actionable tips to enhance your resume for this specific position
+                  Specific steps you can take right now to improve your chances
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  {Object.entries(analysisResults.improvement_suggestions).map(([category, suggestions]) => (
-                    <div key={category} className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-                      <h3 className="text-lg font-medium text-gray-900 mb-3 pb-2 border-b flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-blue-500">
-                          <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
-                          <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
-                        </svg>
-                        {category.charAt(0).toUpperCase() + category.slice(1)} Improvements
-                      </h3>
-                      <ul className="space-y-2">
-                        {suggestions.map((suggestion, i) => (
-                          <li key={i} className="pl-5 py-1 border-l-2 border-blue-200 bg-blue-50 rounded-r-md">
-                            <p className="text-gray-700">{suggestion}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
+                  <h3 className="text-lg font-medium text-blue-900 mb-3">Next Steps</h3>
+                  <div className="text-gray-700 whitespace-pre-line">{analysisResults.next_steps}</div>
                 </div>
               </CardContent>
             </Card>
