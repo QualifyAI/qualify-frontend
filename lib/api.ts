@@ -11,9 +11,9 @@ import {
   ProjectRecommendation,
   SkillLearningResources,
 } from "./models/skill-gap";
-import { hasToken } from './auth';
-import { 
-  ResumeAnalysisResult, 
+import { hasToken } from "./auth";
+import {
+  ResumeAnalysisResult,
   OptimizedResumeResult,
   SimpleOptimizedResumeResult,
   ATSCompatibilityScore,
@@ -21,8 +21,8 @@ import {
   FormatStructureScore,
   ImpactScore as ResumeImpactScore,
   BulletPointExample,
-  IndustryBenchmark as ResumeIndustryBenchmark
-} from './models/resume-analysis';
+  IndustryBenchmark as ResumeIndustryBenchmark,
+} from "./models/resume-analysis";
 
 // Resume types
 export interface Resume {
@@ -41,15 +41,15 @@ export interface ResumeListResponse {
 }
 
 // Re-export the updated interfaces with proper type exports
-export type { 
-  ResumeAnalysisResult, 
+export type {
+  ResumeAnalysisResult,
   OptimizedResumeResult,
   SimpleOptimizedResumeResult,
   ATSCompatibilityScore,
   ContentQualityScore,
   FormatStructureScore,
-  BulletPointExample
-} from './models/resume-analysis';
+  BulletPointExample,
+} from "./models/resume-analysis";
 
 // Rename conflicting types
 export type ResumeImpactScoreType = ResumeImpactScore;
@@ -505,7 +505,7 @@ export const skillGapApi = {
       console.log("FormData contents:", {
         resumeId,
         jobTitle,
-        industry
+        industry,
       });
 
       const response = await fetch(url, {
@@ -530,14 +530,14 @@ export const skillGapApi = {
       const result = await response.json();
       console.log("Resume analysis response received:", result);
       console.log("Response structure check:", {
-        hasOverallScore: 'overall_score' in result,
-        hasOverallFeedback: 'overall_feedback' in result,
-        hasATSCompatibility: 'ats_compatibility' in result,
-        hasContentQuality: 'content_quality' in result,
-        hasFormatStructure: 'format_structure' in result,
-        hasImpactEffectiveness: 'impact_effectiveness' in result,
-        hasIndustryBenchmark: 'industry_benchmark' in result,
-        topLevelKeys: Object.keys(result)
+        hasOverallScore: "overall_score" in result,
+        hasOverallFeedback: "overall_feedback" in result,
+        hasATSCompatibility: "ats_compatibility" in result,
+        hasContentQuality: "content_quality" in result,
+        hasFormatStructure: "format_structure" in result,
+        hasImpactEffectiveness: "impact_effectiveness" in result,
+        hasIndustryBenchmark: "industry_benchmark" in result,
+        topLevelKeys: Object.keys(result),
       });
 
       return result;

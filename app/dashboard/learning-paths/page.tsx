@@ -420,7 +420,7 @@ export default function LearningPathsPage() {
           </div>
         </div>
 
-        <div className="max-w-md mx-auto mb-8 flex items-center justify-center gap-2 p-4 bg-gray-50 rounded-lg">
+        {/* <div className="max-w-md mx-auto mb-8 flex items-center justify-center gap-2 p-4 bg-gray-50 rounded-lg">
           <Label
             htmlFor="ai-questions"
             className="text-sm font-medium cursor-pointer"
@@ -442,7 +442,7 @@ export default function LearningPathsPage() {
               ? "Dynamic questions customized for each niche"
               : "Standard predefined questions"}
           </div>
-        </div>
+        </div> */}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
           {displayedNiches.map((niche) => (
