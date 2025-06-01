@@ -1374,21 +1374,23 @@ function LearningPathView({
 
         {/* Call to action buttons */}
         <div className="mt-12 flex flex-col sm:flex-row gap-4 justify-center">
-          <Button size="lg" className="gap-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                clipRule="evenodd"
-              />
-            </svg>
-            Begin Learning Journey
-          </Button>
+          <Link href={`#module-${path.modules[0].id}`}>
+            <Button size="lg" className="gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Begin Learning Journey
+            </Button>
+          </Link>
           <Link href="/dashboard/learning-paths?tab=saved">
             <Button variant="outline" size="lg" className="gap-2">
               <svg
