@@ -968,6 +968,106 @@ function LearningPathView({
       </div>
 
       <div className="max-w-5xl mx-auto px-4">
+        {/* Overview Section */}
+        {path.overview && (
+          <div className="mb-8 bg-blue-50 rounded-xl p-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Overview</h2>
+            <p className="text-gray-700 leading-relaxed">{path.overview}</p>
+          </div>
+        )}
+
+        {/* Path Information Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* Prerequisites */}
+          {path.prerequisites && path.prerequisites.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 mr-2 text-blue-600"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Prerequisites
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {path.prerequisites.map((prereq, idx) => (
+                    <li key={idx} className="flex items-start">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                      <span className="text-sm text-gray-700">{prereq}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Intended Audience */}
+          {path.intendedAudience && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 mr-2 text-green-600"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
+                  </svg>
+                  Intended Audience
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-700">{path.intendedAudience}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Career Outcomes */}
+          {path.careerOutcomes && path.careerOutcomes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 mr-2 text-purple-600"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z"
+                      clipRule="evenodd"
+                    />
+                    <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+                  </svg>
+                  Career Outcomes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {path.careerOutcomes.map((outcome, idx) => (
+                    <li key={idx} className="flex items-start">
+                      <span className="w-2 h-2 bg-purple-600 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                      <span className="text-sm text-gray-700">{outcome}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
         {/* Path Navigation */}
         <div className="sticky top-[4.5rem] z-20 bg-white shadow rounded-xl mb-8 overflow-hidden">
           <div className="flex items-center overflow-x-auto">
@@ -1004,7 +1104,7 @@ function LearningPathView({
                   {module.title}
                 </h2>
               </div>
-              <p className="text-gray-700 mb-4 max-w-3xl">
+              <p className="text-gray-700 mb-6 max-w-3xl">
                 {module.description}
               </p>
 
@@ -1039,7 +1139,52 @@ function LearningPathView({
                 </div>
               </div>
 
-              <div className="mb-4">
+              {/* Prerequisites for this module */}
+              {module.prerequisites && module.prerequisites.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                    Module Prerequisites
+                  </h4>
+                  <div className="bg-amber-50 p-3 rounded-md">
+                    <ul className="space-y-1">
+                      {module.prerequisites.map((prereq, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-start text-sm text-amber-800"
+                        >
+                          <span className="w-2 h-2 bg-amber-600 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                          {prereq}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Learning Objectives */}
+              {module.learningObjectives &&
+                module.learningObjectives.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                      Learning Objectives
+                    </h4>
+                    <div className="bg-green-50 p-3 rounded-md">
+                      <ul className="space-y-1">
+                        {module.learningObjectives.map((objective, idx) => (
+                          <li
+                            key={idx}
+                            className="flex items-start text-sm text-green-800"
+                          >
+                            <span className="w-2 h-2 bg-green-600 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                            {objective}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+              <div className="mb-6">
                 <h4 className="text-sm font-semibold text-gray-700 mb-2">
                   Topics
                 </h4>
@@ -1055,7 +1200,112 @@ function LearningPathView({
                 </div>
               </div>
 
-              <div className="mb-4">
+              {/* Subtopics */}
+              {module.subtopics && module.subtopics.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                    Subtopics
+                  </h4>
+                  <div className="space-y-4">
+                    {module.subtopics.map((subtopic, idx) => (
+                      <div
+                        key={idx}
+                        className="border border-gray-200 rounded-md p-4"
+                      >
+                        <h5 className="font-medium text-gray-900 mb-2">
+                          {subtopic.title}
+                        </h5>
+                        <p className="text-sm text-gray-600 mb-3">
+                          {subtopic.description}
+                        </p>
+                        {subtopic.resources &&
+                          subtopic.resources.length > 0 && (
+                            <div className="space-y-2">
+                              <span className="text-xs font-medium text-gray-500">
+                                Resources:
+                              </span>
+                              {subtopic.resources.map(
+                                (resource, resourceIdx) => (
+                                  <div
+                                    key={resourceIdx}
+                                    className="flex items-center justify-between bg-gray-50 rounded-md p-2"
+                                  >
+                                    <div className="flex items-center">
+                                      <span className="text-xs font-medium text-gray-500 bg-gray-200 rounded-full px-2 py-1 mr-2">
+                                        {resource.type}
+                                      </span>
+                                      <div>
+                                        <a
+                                          href={resource.link}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-blue-600 hover:underline text-sm"
+                                        >
+                                          {resource.name}
+                                        </a>
+                                        {resource.description && (
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            {resource.description}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {resource.isFree && (
+                                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                          Free
+                                        </span>
+                                      )}
+                                      {resource.estimatedTime && (
+                                        <span className="text-xs text-gray-500">
+                                          {resource.estimatedTime}
+                                        </span>
+                                      )}
+                                      {resource.rating && (
+                                        <div className="flex items-center">
+                                          <span className="text-yellow-500 mr-1">
+                                            ★
+                                          </span>
+                                          <span className="text-sm">
+                                            {resource.rating}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Projects */}
+              {module.projects && module.projects.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                    Hands-on Projects
+                  </h4>
+                  <div className="bg-purple-50 p-3 rounded-md">
+                    <ul className="space-y-1">
+                      {module.projects.map((project, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-start text-sm text-purple-800"
+                        >
+                          <span className="w-2 h-2 bg-purple-600 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                          {project}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-6">
                 <h4 className="text-sm font-semibold text-gray-700 mb-2">
                   Tips
                 </h4>
@@ -1065,34 +1315,55 @@ function LearningPathView({
               </div>
 
               <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">
                   Recommended Resources
                 </h4>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {module.resources.map((resource, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between bg-gray-50 rounded-md p-3"
+                      className="border border-gray-200 rounded-md p-4"
                     >
-                      <div className="flex items-center">
-                        <span className="text-xs font-medium text-gray-500 bg-gray-200 rounded-full px-2 py-1 mr-3">
-                          {resource.type}
-                        </span>
-                        <a
-                          href={resource.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
-                        >
-                          {resource.name}
-                        </a>
-                      </div>
-                      {resource.rating && (
+                      <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center">
-                          <span className="text-yellow-500 mr-1">★</span>
-                          <span className="text-sm">{resource.rating}</span>
+                          <span className="text-xs font-medium text-gray-500 bg-gray-200 rounded-full px-2 py-1 mr-3">
+                            {resource.type}
+                          </span>
+                          <div>
+                            <a
+                              href={resource.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline font-medium"
+                            >
+                              {resource.name}
+                            </a>
+                            {resource.description && (
+                              <p className="text-sm text-gray-600 mt-1">
+                                {resource.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      )}
+                        <div className="flex items-center gap-2">
+                          {resource.isFree && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                              Free
+                            </span>
+                          )}
+                          {resource.estimatedTime && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                              {resource.estimatedTime}
+                            </span>
+                          )}
+                          {resource.rating && (
+                            <div className="flex items-center">
+                              <span className="text-yellow-500 mr-1">★</span>
+                              <span className="text-sm">{resource.rating}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

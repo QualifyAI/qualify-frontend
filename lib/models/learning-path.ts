@@ -23,6 +23,15 @@ export interface LearningResource {
   link: string;
   rating?: number;
   description?: string;
+  isFree?: boolean;
+  estimatedTime?: string;
+}
+
+// Subtopic within a learning module
+export interface LearningSubtopic {
+  title: string;
+  description: string;
+  resources?: LearningResource[];
 }
 
 // Learning module in a path
@@ -35,6 +44,10 @@ export interface LearningModule {
   topics: string[];
   resources: LearningResource[];
   tips: string;
+  subtopics?: LearningSubtopic[];
+  prerequisites?: string[];
+  learningObjectives?: string[];
+  projects?: string[];
   completed?: boolean;
   progress?: number;
 }
@@ -47,6 +60,10 @@ export interface LearningPath {
   estimatedTime: string;
   modules: LearningModule[];
   niche: string;
+  overview?: string;
+  prerequisites?: string[];
+  intendedAudience?: string;
+  careerOutcomes?: string[];
   userId?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -57,4 +74,4 @@ export interface LearningPathRequest {
   nicheId: number;
   customNiche?: string;
   answers: Record<string, string>;
-} 
+}
