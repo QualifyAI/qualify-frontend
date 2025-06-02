@@ -379,6 +379,107 @@ export const learningPathsApi = {
   getPathById: async (id: string): Promise<LearningPath> => {
     return await fetchApi<LearningPath>(`/learning-paths/${id}`);
   },
+
+  // Update a learning path
+  updatePath: async (id: string, path: Partial<LearningPath>): Promise<LearningPath> => {
+    return await fetchApi<LearningPath>(`/learning-paths/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(path),
+    });
+  },
+
+  // Delete a learning path
+  deletePath: async (id: string): Promise<void> => {
+    return await fetchApi<void>(`/learning-paths/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  // Progress Tracking Functions
+
+  // Update module progress
+  updateModuleProgress: async (
+    pathId: string,
+    moduleId: number,
+    progress: {
+      completed?: boolean;
+      progress?: number;
+      notes?: string;
+      target_completion_date?: string;
+    }
+  ): Promise<LearningPath> => {
+    return await fetchApi<LearningPath>(`/learning-paths/${pathId}/progress/module`, {
+      method: "PUT",
+      body: JSON.stringify({
+        module_id: moduleId,
+        ...progress,
+      }),
+    });
+  },
+
+  // Update resource progress
+  updateResourceProgress: async (
+    pathId: string,
+    moduleId: number,
+    resourceId: string,
+    progress: {
+      completed?: boolean;
+      notes?: string;
+      rating?: number;
+      time_spent_minutes?: number;
+    }
+  ): Promise<LearningPath> => {
+    return await fetchApi<LearningPath>(`/learning-paths/${pathId}/progress/resource`, {
+      method: "PUT",
+      body: JSON.stringify({
+        module_id: moduleId,
+        resource_id: resourceId,
+        ...progress,
+      }),
+    });
+  },
+
+  // Add custom resource to a module
+  addCustomResource: async (
+    pathId: string,
+    moduleId: number,
+    resource: {
+      type: string;
+      name: string;
+      link: string;
+      rating?: number;
+      description?: string;
+    }
+  ): Promise<LearningPath> => {
+    return await fetchApi<LearningPath>(`/learning-paths/${pathId}/resources/custom`, {
+      method: "POST",
+      body: JSON.stringify({
+        module_id: moduleId,
+        resource,
+      }),
+    });
+  },
+
+  // Get learning path statistics
+  getPathStats: async (pathId: string): Promise<LearningPathStats> => {
+    return await fetchApi<LearningPathStats>(`/learning-paths/${pathId}/stats`);
+  },
+
+  // Update path notes
+  updatePathNotes: async (pathId: string, notes: string): Promise<void> => {
+    return await fetchApi<void>(`/learning-paths/${pathId}/notes`, {
+      method: "PUT",
+      body: JSON.stringify({ notes }),
+    });
+  },
+
+  // Update target completion date
+  updateTargetDate: async (pathId: string, targetDate: string): Promise<void> => {
+    return await fetchApi<void>(`/learning-paths/${pathId}/target-date`, {
+      method: "PUT",
+      body: JSON.stringify({ target_date: targetDate }),
+    });
+  },
 };
 
 // Skill Gap Analysis API functions
