@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SkillGapAnalysis, MatchedSkill, MissingSkill, ProjectRecommendation } from '@/lib/models/skill-gap';
 import { skillGapApi, resumeApi, Resume, ResumeListResponse } from '@/lib/api';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { hasToken, getStoredTokens } from '@/lib/auth';
 
@@ -21,10 +21,14 @@ enum AnalysisStep {
 
 export default function SkillGapPage() {
   const router = useRouter();
+  const searchParams = useSearchParams(); // Get search params
   const { isAuthenticated } = useAuth();
-  const [activeTab, setActiveTab] = useState('new');
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabFromQuery = searchParams.get('tab');
+    return tabFromQuery === 'history' ? 'history' : 'new'; // Default to 'new' if not specified or invalid
+  });
   const [analysisStep, setAnalysisStep] = useState<AnalysisStep>(AnalysisStep.INPUT);
-  
+
   // Input states
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState('');
@@ -34,29 +38,37 @@ export default function SkillGapPage() {
   const [jobDescription, setJobDescription] = useState('');
   const [jobPostingUrl, setJobPostingUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
-  
+
   // Results state
   const [analysisResults, setAnalysisResults] = useState<SkillGapAnalysis | null>(null);
   const [analysisHistory, setAnalysisHistory] = useState<SkillGapAnalysis[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  
+
   // File input ref
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Check authentication on component mount
   useEffect(() => {
     if (!hasToken()) {
       router.push('/login');
       return;
     }
-    
+
     // Load analysis history and resume list when component mounts
     if (isAuthenticated) {
       fetchAnalysisHistory();
       fetchUserResumes();
     }
   }, [isAuthenticated, router]);
-  
+
+  // Effect to update activeTab when query param changes
+  useEffect(() => {
+    const tabFromQuery = searchParams.get('tab');
+    if (tabFromQuery === 'new' || tabFromQuery === 'history') {
+      setActiveTab(tabFromQuery);
+    }
+  }, [searchParams]);
+
   // Tab change handler to fetch history when tab changes
   useEffect(() => {
     if (activeTab === 'history' && isAuthenticated) {
@@ -80,7 +92,7 @@ export default function SkillGapPage() {
       setLoadingResumes(false);
     }
   };
-  
+
   // Fetch analysis history
   const fetchAnalysisHistory = async () => {
     setLoadingHistory(true);
@@ -94,29 +106,29 @@ export default function SkillGapPage() {
       setLoadingHistory(false);
     }
   };
-  
+
   // Handle file selection
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       setResumeFile(file);
-      
+
       // Clear resume text and selected resume when file is selected
       setResumeText('');
       setSelectedResumeId('');
-      
+
       // Visual feedback
       const fileName = document.getElementById('file-name');
       if (fileName) {
         fileName.textContent = file.name;
       }
-      
+
       // Auto-save the uploaded resume to the user's account
       try {
         // Get filename without extension for the title
         const fileTitle = file.name.split('.').slice(0, -1).join('.') || file.name;
         await resumeApi.uploadResume(file, fileTitle, false);
-        
+
         // Refresh the list of stored resumes
         await fetchUserResumes();
       } catch (err) {
@@ -125,32 +137,32 @@ export default function SkillGapPage() {
       }
     }
   };
-  
+
   // Reset file input
   const resetFileInput = () => {
     setResumeFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-    
+
     // Clear file name display
     const fileName = document.getElementById('file-name');
     if (fileName) {
       fileName.textContent = 'No file selected';
     }
   };
-  
+
   // Validate inputs
   const validateInputs = () => {
     // Reset error
     setError(null);
-    
+
     // Check if resume is provided (either file, text, or stored resume)
     if (!resumeFile && !resumeText && !selectedResumeId) {
       setError('Please upload a resume file, paste your resume text, or select a stored resume');
       return false;
     }
-    
+
     // Verify the selected resume ID exists in the current resume list
     if (selectedResumeId) {
       const resumeExists = storedResumes.some(resume => resume.id === selectedResumeId);
@@ -159,29 +171,29 @@ export default function SkillGapPage() {
         return false;
       }
     }
-    
+
     // Check if job info is provided (either description or URL)
     if (!jobDescription && !jobPostingUrl) {
       setError('Please enter a job description or provide a job posting URL');
       return false;
     }
-    
+
     return true;
   };
-  
+
   // Submit analysis
   const submitAnalysis = async () => {
     // Validate inputs
     if (!validateInputs()) {
       return;
     }
-    
+
     // Set analyzing state
     setAnalysisStep(AnalysisStep.ANALYZING);
-    
+
     try {
       let finalResumeId = selectedResumeId;
-      
+
       // If user uploaded a file but didn't select an existing resume,
       // automatically save the file first
       if (resumeFile && !selectedResumeId) {
@@ -189,11 +201,11 @@ export default function SkillGapPage() {
           // Get filename without extension for the title
           const fileName = resumeFile.name;
           const fileTitle = fileName.split('.').slice(0, -1).join('.') || fileName;
-          
+
           // Save the resume to user's account
           const savedResume = await resumeApi.uploadResume(resumeFile, fileTitle, false);
           finalResumeId = savedResume.id;
-          
+
           // Refresh stored resumes in the background
           fetchUserResumes().catch(console.error);
         } catch (saveErr) {
@@ -207,11 +219,11 @@ export default function SkillGapPage() {
         try {
           // Get a generic title based on timestamp
           const title = `Resume ${new Date().toLocaleDateString()}`;
-          
+
           // Save the resume text to user's account
           const savedResume = await resumeApi.saveResumeText(title, resumeText, false);
           finalResumeId = savedResume.id;
-          
+
           // Refresh stored resumes in the background
           fetchUserResumes().catch(console.error);
         } catch (saveErr) {
@@ -219,7 +231,7 @@ export default function SkillGapPage() {
           // Continue with analysis even if saving failed
         }
       }
-      
+
       // Create request object - use original file/text if saving failed
       const request = {
         resumeFile: finalResumeId ? undefined : (resumeFile || undefined),
@@ -228,16 +240,16 @@ export default function SkillGapPage() {
         jobDescription: jobDescription || undefined,
         jobPostingUrl: jobPostingUrl || undefined,
       };
-      
+
       // Submit analysis
       const results = await skillGapApi.analyzeSkills(request);
-      
+
       // Store results
       setAnalysisResults(results);
-      
+
       // Show results
       setAnalysisStep(AnalysisStep.RESULTS);
-      
+
       // Automatically fetch history to update with new analysis
       await fetchAnalysisHistory();
     } catch (err) {
@@ -246,11 +258,11 @@ export default function SkillGapPage() {
       setAnalysisStep(AnalysisStep.INPUT);
     }
   };
-  
+
   // Save analysis (used by Save button)
   const saveAnalysis = async () => {
     if (!analysisResults) return;
-    
+
     try {
       // This is just refreshing the history since analyses are already saved on backend
       await fetchAnalysisHistory();
@@ -261,7 +273,7 @@ export default function SkillGapPage() {
       setError('Failed to save your analysis. Please try again.');
     }
   };
-  
+
   // Reset analysis
   const resetAnalysis = () => {
     // Reset all states
@@ -275,18 +287,18 @@ export default function SkillGapPage() {
     setAnalysisStep(AnalysisStep.INPUT);
     resetFileInput();
   };
-  
+
   // Fetch job description from URL
   const fetchJobDescription = async () => {
     if (!jobPostingUrl) {
       setError('Please enter a job posting URL');
       return;
     }
-    
+
     try {
       // Show loading state for job description
       setJobDescription('Fetching job description...');
-      
+
       // Use the real backend service to fetch job description
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/skill-gap/fetch-job-description`, {
         method: 'POST',
@@ -296,11 +308,11 @@ export default function SkillGapPage() {
         },
         body: JSON.stringify({ job_posting_url: jobPostingUrl }),
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch job description');
       }
-      
+
       const data = await response.json();
       setJobDescription(data.job_description);
     } catch (err) {
@@ -309,7 +321,7 @@ export default function SkillGapPage() {
       setJobDescription('');
     }
   };
-  
+
   // Render input form
   const renderInputForm = () => {
     return (
@@ -355,9 +367,9 @@ export default function SkillGapPage() {
                   </div>
                 </div>
                 {selectedResumeId && (
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
+                  <Button
+                    type="button"
+                    variant="ghost"
                     size="sm"
                     onClick={() => setSelectedResumeId('')}
                   >
@@ -379,7 +391,7 @@ export default function SkillGapPage() {
                 </div>
               </div>
             )}
-            
+
             <div className="space-y-2">
               <div className="flex flex-col space-y-2">
                 <label className="font-medium text-sm">Upload Resume File</label>
@@ -392,8 +404,8 @@ export default function SkillGapPage() {
                     onChange={handleFileChange}
                     id="resume-upload"
                   />
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     variant="outline"
                     onClick={() => document.getElementById('resume-upload')?.click()}
                   >
@@ -403,9 +415,9 @@ export default function SkillGapPage() {
                     {resumeFile ? resumeFile.name : 'No file selected'}
                   </span>
                   {resumeFile && (
-                    <Button 
-                      type="button" 
-                      variant="ghost" 
+                    <Button
+                      type="button"
+                      variant="ghost"
                       size="sm"
                       onClick={resetFileInput}
                     >
@@ -414,7 +426,7 @@ export default function SkillGapPage() {
                   )}
                 </div>
               </div>
-              
+
               <div className="mt-4 relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t"></span>
@@ -425,7 +437,7 @@ export default function SkillGapPage() {
                   </span>
                 </div>
               </div>
-              
+
               <div className="mt-6">
                 <label className="font-medium text-sm">Paste Resume Text</label>
                 <Textarea
@@ -445,7 +457,7 @@ export default function SkillGapPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Job Information</CardTitle>
@@ -465,7 +477,7 @@ export default function SkillGapPage() {
                 onChange={(e) => setJobDescription(e.target.value)}
               />
             </div>
-            
+
             <div className="mt-4 relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t"></span>
@@ -476,7 +488,7 @@ export default function SkillGapPage() {
                 </span>
               </div>
             </div>
-            
+
             <div className="mt-6 space-y-2">
               <label className="font-medium text-sm">
                 Job Posting URL
@@ -487,8 +499,8 @@ export default function SkillGapPage() {
                   value={jobPostingUrl}
                   onChange={(e) => setJobPostingUrl(e.target.value)}
                 />
-                <Button 
-                  type="button" 
+                <Button
+                  type="button"
                   variant="outline"
                   onClick={fetchJobDescription}
                 >
@@ -509,7 +521,7 @@ export default function SkillGapPage() {
             </Button>
           </CardFooter>
         </Card>
-        
+
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
             {error}
@@ -518,7 +530,7 @@ export default function SkillGapPage() {
       </div>
     );
   };
-  
+
   // Render analyzing state
   const renderAnalyzing = () => {
     return (
@@ -532,7 +544,7 @@ export default function SkillGapPage() {
       </div>
     );
   };
-  
+
   // Render results
   const renderResults = () => {
     if (!analysisResults) {
@@ -545,7 +557,7 @@ export default function SkillGapPage() {
         </div>
       );
     }
-    
+
     return (
       <div className="space-y-8">
         {/* Overall Summary Card */}
@@ -579,7 +591,7 @@ export default function SkillGapPage() {
               <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md">
                 <p className="text-gray-700 whitespace-pre-line">{analysisResults.overall_assessment}</p>
               </div>
-              
+
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-green-50 p-4 rounded-md">
                   <h4 className="font-medium text-green-700 mb-2">Top Strengths</h4>
@@ -597,7 +609,7 @@ export default function SkillGapPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Tabbed Results */}
         <Tabs defaultValue="matched" className="w-full">
           <TabsList className="grid grid-cols-4 w-full">
@@ -606,7 +618,7 @@ export default function SkillGapPage() {
             <TabsTrigger value="projects">Project Ideas</TabsTrigger>
             <TabsTrigger value="next-steps">Next Steps</TabsTrigger>
           </TabsList>
-          
+
           {/* Matched Skills Tab */}
           <TabsContent value="matched" className="mt-6">
             <div className="mb-4 p-4 bg-gray-50 rounded-md text-sm text-gray-700">
@@ -639,7 +651,7 @@ export default function SkillGapPage() {
               ))}
             </div>
           </TabsContent>
-          
+
           {/* Missing Skills Tab */}
           <TabsContent value="missing" className="mt-6">
             <div className="mb-4 p-4 bg-gray-50 rounded-md text-sm text-gray-700">
@@ -648,23 +660,21 @@ export default function SkillGapPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {analysisResults.missing_skills.map((skill, index) => (
                 <Card key={index} className="overflow-hidden border border-gray-200 hover:shadow-md transition-all">
-                  <div className={`h-2 ${
-                    skill.importance === "Critical" 
-                      ? "bg-red-500" 
-                      : skill.importance === "Important" 
-                      ? "bg-amber-500" 
-                      : "bg-blue-500"
-                  }`}></div>
+                  <div className={`h-2 ${skill.importance === "Critical"
+                      ? "bg-red-500"
+                      : skill.importance === "Important"
+                        ? "bg-amber-500"
+                        : "bg-blue-500"
+                    }`}></div>
                   <CardHeader className="pb-2">
                     <div className="flex justify-between">
                       <CardTitle className="text-lg font-bold text-gray-800">{skill.skill}</CardTitle>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        skill.importance === "Critical" 
-                          ? "bg-red-100 text-red-800" 
-                          : skill.importance === "Important" 
-                          ? "bg-amber-100 text-amber-800" 
-                          : "bg-blue-100 text-blue-800"
-                      }`}>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${skill.importance === "Critical"
+                          ? "bg-red-100 text-red-800"
+                          : skill.importance === "Important"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}>
                         {skill.importance}
                       </span>
                     </div>
@@ -692,7 +702,7 @@ export default function SkillGapPage() {
               ))}
             </div>
           </TabsContent>
-          
+
           {/* Project Recommendations Tab */}
           <TabsContent value="projects" className="mt-6">
             <div className="mb-4 p-4 bg-gray-50 rounded-md text-sm text-gray-700">
@@ -719,7 +729,7 @@ export default function SkillGapPage() {
                     <div className="bg-indigo-50 p-4 rounded-md">
                       <p className="text-gray-700">{project.description}</p>
                     </div>
-                    
+
                     <div>
                       <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-indigo-600">
@@ -736,7 +746,7 @@ export default function SkillGapPage() {
               ))}
             </div>
           </TabsContent>
-          
+
           {/* Next Steps Tab */}
           <TabsContent value="next-steps" className="mt-6">
             <div className="mb-4 p-4 bg-gray-50 rounded-md text-sm text-gray-700">
@@ -758,7 +768,7 @@ export default function SkillGapPage() {
             </Card>
           </TabsContent>
         </Tabs>
-        
+
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mt-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
           <div>
@@ -777,7 +787,7 @@ export default function SkillGapPage() {
       </div>
     );
   };
-  
+
   // Main render method
   return (
     <div className="space-y-6">
@@ -787,7 +797,7 @@ export default function SkillGapPage() {
           Compare your resume to job descriptions to identify skill gaps and get personalized recommendations
         </p>
       </div>
-      
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex justify-between items-center mb-6">
 
@@ -796,13 +806,13 @@ export default function SkillGapPage() {
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
         </div>
-        
+
         <TabsContent value="new" className="mt-0">
           {analysisStep === AnalysisStep.INPUT && renderInputForm()}
           {analysisStep === AnalysisStep.ANALYZING && renderAnalyzing()}
           {analysisStep === AnalysisStep.RESULTS && renderResults()}
         </TabsContent>
-        
+
         <TabsContent value="history" className="mt-0">
           {loadingHistory ? (
             <div className="flex justify-center items-center h-64">
@@ -833,13 +843,12 @@ export default function SkillGapPage() {
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-center mb-2">
                       <CardTitle className="line-clamp-1">{analysis.job_title}</CardTitle>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        analysis.match_percentage >= 80 
-                          ? "bg-green-100 text-green-800" 
-                          : analysis.match_percentage >= 60 
-                          ? "bg-yellow-100 text-yellow-800" 
-                          : "bg-red-100 text-red-800"
-                      }`}>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${analysis.match_percentage >= 80
+                          ? "bg-green-100 text-green-800"
+                          : analysis.match_percentage >= 60
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-red-100 text-red-800"
+                        }`}>
                         {analysis.match_percentage.toFixed(0)}% Match
                       </span>
                     </div>
@@ -878,4 +887,4 @@ export default function SkillGapPage() {
       </Tabs>
     </div>
   );
-} 
+}
