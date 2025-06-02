@@ -1,5 +1,11 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/context/auth-context";
+import { learningPathsApi } from "@/lib/api";
+import { LearningPath, Niche, PathQuestion } from "@/lib/models/learning-path";
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -10,12 +16,6 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/context/auth-context";
-import { learningPathsApi } from "@/lib/api";
-import { LearningPath, Niche, PathQuestion } from "@/lib/models/learning-path";
 import { useRouter } from "next/navigation";
 import { hasToken } from "@/lib/auth";
 import Link from "next/link";
@@ -75,40 +75,6 @@ export default function LearningPathsPage() {
     }
   }, [router]);
 
-  // Load niches on initial load
-  useEffect(() => {
-    const fetchNiches = async () => {
-      try {
-        setLoading(true);
-
-        // Check authentication first
-        if (!hasToken()) {
-          router.push("/login");
-          return;
-        }
-
-        const fetchedNiches = await learningPathsApi.getNiches();
-        setNiches(fetchedNiches);
-        setDisplayedNiches(fetchedNiches);
-      } catch (err) {
-        console.error("Failed to fetch niches:", err);
-        // Check for authentication error
-        if (err instanceof Error && err.message.includes("401")) {
-          setError("Your session has expired. Please log in again.");
-          router.push("/login");
-          return;
-        }
-        setError("Failed to load industry niches. Please try again later.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (isAuthenticated) {
-      fetchNiches();
-    }
-  }, [isAuthenticated, router]);
-
   // Load user's saved paths
   useEffect(() => {
     const fetchSavedPaths = async () => {
@@ -146,6 +112,41 @@ export default function LearningPathsPage() {
       fetchSavedPaths();
     }
   }, [activeTab, isAuthenticated, router]);
+
+
+  // Load niches on initial load
+  useEffect(() => {
+    const fetchNiches = async () => {
+      try {
+        setLoading(true);
+
+        // Check authentication first
+        if (!hasToken()) {
+          router.push("/login");
+          return;
+        }
+
+        const fetchedNiches = await learningPathsApi.getNiches();
+        setNiches(fetchedNiches);
+        setDisplayedNiches(fetchedNiches);
+      } catch (err) {
+        console.error("Failed to fetch niches:", err);
+        // Check for authentication error
+        if (err instanceof Error && err.message.includes("401")) {
+          setError("Your session has expired. Please log in again.");
+          router.push("/login");
+          return;
+        }
+        setError("Failed to load industry niches. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (isAuthenticated) {
+      fetchNiches();
+    }
+  }, [isAuthenticated, router]);
 
   // Filter niches based on search query
   useEffect(() => {
