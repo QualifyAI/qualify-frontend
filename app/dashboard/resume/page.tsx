@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,8 @@ import { ResumeAnalysisResult, SimpleOptimizedResumeResult } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { hasToken } from '@/lib/auth';
 import { Resume } from '@/lib/api';
-import ReactMarkdown from 'react-markdown';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 // Enum for tracking the analysis steps
 enum AnalysisStep {
@@ -138,17 +139,7 @@ export default function ResumeEnhancementPage() {
 
   // Download optimized resume
   const handleDownloadResume = () => {
-    if (!optimizedResume) return;
-    
-    const blob = new Blob([optimizedResume.markdown], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `optimized-resume-${new Date().toISOString().split('T')[0]}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // This function is no longer needed as we now have separate download functions in the component
   };
 
   return (
@@ -184,7 +175,6 @@ export default function ResumeEnhancementPage() {
         optimizedResume={optimizedResume}
         onBack={() => setStep(AnalysisStep.RESULTS)}
         onReset={handleReset}
-        onDownload={handleDownloadResume}
       />}
     </div>
   );
@@ -310,19 +300,302 @@ function ResumeSelectionForm({
   );
 }
 
+// Custom Resume Formatter Component for display
+function ResumeFormatter({ markdown }: { markdown: string }) {
+  // Parse the markdown into structured sections
+  const parseMarkdown = (text: string) => {
+    const lines = text.split('\n').filter(line => line.trim());
+    const sections: Array<{ type: string; content: string; level?: number }> = [];
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      
+      if (trimmed.startsWith('# ')) {
+        sections.push({ type: 'h1', content: trimmed.substring(2) });
+      } else if (trimmed.startsWith('## ')) {
+        sections.push({ type: 'h2', content: trimmed.substring(3) });
+      } else if (trimmed.startsWith('### ')) {
+        sections.push({ type: 'h3', content: trimmed.substring(4) });
+      } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        sections.push({ type: 'bullet', content: trimmed.substring(2) });
+      } else if (trimmed.includes('|') && (trimmed.includes('@') || trimmed.includes('+'))) {
+        sections.push({ type: 'contact', content: trimmed });
+      } else if (trimmed.includes('|') && (trimmed.includes('2020') || trimmed.includes('2021') || trimmed.includes('2022') || trimmed.includes('2023') || trimmed.includes('2024') || trimmed.includes('Present'))) {
+        sections.push({ type: 'job-details', content: trimmed });
+      } else if (trimmed.length > 0) {
+        sections.push({ type: 'paragraph', content: trimmed });
+      }
+    }
+    
+    return sections;
+  };
+
+  const sections = parseMarkdown(markdown);
+
+  return (
+    <div id="resume-content" className="max-w-4xl mx-auto bg-white shadow-xl rounded-lg overflow-hidden border border-gray-200">
+      {/* Resume Header Styling */}
+      <div className="bg-blue-50 px-8 py-8 border-b-2 border-blue-100">
+        {sections.filter(s => s.type === 'h1').map((section, index) => (
+          <h1 key={index} className="text-5xl font-bold text-gray-900 text-center mb-4 tracking-tight">
+            {section.content}
+          </h1>
+        ))}
+        {sections.filter(s => s.type === 'contact').map((section, index) => (
+          <div key={index} className="text-center text-gray-700">
+            <div className="flex flex-wrap justify-center gap-6 mt-4">
+              {section.content.split('|').map((item, i) => (
+                <span key={i} className="flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100">
+                  <span className="text-gray-800 font-medium text-sm">{item.trim()}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Resume Body */}
+      <div className="px-8 py-6 space-y-8">
+        {(() => {
+          const bodySections = sections.filter(s => s.type !== 'h1' && s.type !== 'contact');
+          const groupedSections: Array<{ title: string; content: Array<{ type: string; content: string }> }> = [];
+          let currentSection: { title: string; content: Array<{ type: string; content: string }> } | null = null;
+
+          for (const section of bodySections) {
+            if (section.type === 'h2') {
+              if (currentSection) {
+                groupedSections.push(currentSection);
+              }
+              currentSection = { title: section.content, content: [] };
+            } else if (currentSection) {
+              currentSection.content.push(section);
+            }
+          }
+
+          if (currentSection) {
+            groupedSections.push(currentSection);
+          }
+
+          return groupedSections.map((group, groupIndex) => (
+            <div key={groupIndex} className="resume-section">
+              {/* Section Header */}
+              <div className="border-b-2 border-blue-600 pb-2 mb-4">
+                <h2 className="text-xl font-bold text-gray-900 uppercase tracking-wide">
+                  {group.title}
+                </h2>
+              </div>
+
+              {/* Section Content */}
+              <div className="space-y-4">
+                {(() => {
+                  if (group.title.toLowerCase().includes('experience') || group.title.toLowerCase().includes('education')) {
+                    // Handle Experience/Education sections with companies/institutions
+                    const entries: Array<{ company: string; content: Array<{ type: string; content: string }> }> = [];
+                    let currentEntry: { company: string; content: Array<{ type: string; content: string }> } | null = null;
+
+                    for (const item of group.content) {
+                      if (item.type === 'h3') {
+                        if (currentEntry) {
+                          entries.push(currentEntry);
+                        }
+                        currentEntry = { company: item.content, content: [] };
+                      } else if (currentEntry) {
+                        currentEntry.content.push(item);
+                      }
+                    }
+
+                    if (currentEntry) {
+                      entries.push(currentEntry);
+                    }
+
+                    return entries.map((entry, entryIndex) => (
+                      <div key={entryIndex} className="mb-6">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                          {entry.company}
+                        </h3>
+                        <div className="ml-4 space-y-2">
+                          {entry.content.map((item, itemIndex) => (
+                            <div key={itemIndex}>
+                              {item.type === 'bullet' ? (
+                                <div className="flex items-start">
+                                  <span className="text-blue-600 mr-3 mt-1.5 flex-shrink-0">•</span>
+                                  <p className="text-gray-700 leading-relaxed text-sm">
+                                    {item.content}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-gray-600 text-sm italic mb-2">
+                                  {item.content}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ));
+                  } else {
+                    // Handle other sections (Skills, Projects, etc.)
+                    return group.content.map((item, itemIndex) => (
+                      <div key={itemIndex}>
+                        {item.type === 'h3' ? (
+                          <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                            {item.content}
+                          </h3>
+                        ) : item.type === 'bullet' ? (
+                          <div className="flex items-start mb-2">
+                            <span className="text-blue-600 mr-3 mt-1.5 flex-shrink-0">•</span>
+                            <p className="text-gray-700 leading-relaxed text-sm">
+                              {item.content}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-gray-700 mb-3 leading-relaxed">
+                            {item.content}
+                          </p>
+                        )}
+                      </div>
+                    ));
+                  }
+                })()}
+              </div>
+            </div>
+          ));
+        })()}
+      </div>
+    </div>
+  );
+}
+
 // Enhanced optimized resume view
 function OptimizedResumeView({ 
   optimizedResume, 
   onBack, 
-  onReset,
-  onDownload
+  onReset
 }: { 
   optimizedResume: SimpleOptimizedResumeResult;
   onBack: () => void;
   onReset: () => void;
-  onDownload: () => void;
 }) {
   const [activeTab, setActiveTab] = useState("resume");
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  // Download as Markdown
+  const handleDownloadMarkdown = () => {
+    const blob = new Blob([optimizedResume.markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `optimized-resume-${new Date().toISOString().split('T')[0]}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Download as PDF with proper formatting
+  const handleDownloadPDF = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      // Create a temporary container with inline styles
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '0';
+      tempContainer.style.width = '800px';
+      tempContainer.style.backgroundColor = '#ffffff';
+      tempContainer.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+      
+      // Create the PDF-optimized HTML content with inline styles
+      const createPDFContent = (markdown: string) => {
+        const lines = markdown.split('\n').filter(line => line.trim());
+        let htmlContent = '<div style="max-width: 800px; margin: 0 auto; background: #fff; padding: 40px; line-height: 1.6;">';
+        
+        let currentSection = '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          
+          if (trimmed.startsWith('# ')) {
+            htmlContent += `<h1 style="font-size: 42px; font-weight: bold; color: #111827; text-align: center; margin: 0 0 20px 0; letter-spacing: -0.025em;">${trimmed.substring(2)}</h1>`;
+          } else if (trimmed.startsWith('## ')) {
+            if (currentSection) htmlContent += '</div>';
+            currentSection = trimmed.substring(3);
+            htmlContent += `<div style="margin: 30px 0;"><h2 style="font-size: 18px; font-weight: bold; color: #111827; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin: 0 0 16px 0;">${currentSection}</h2>`;
+          } else if (trimmed.startsWith('### ')) {
+            htmlContent += `<h3 style="font-size: 16px; font-weight: 600; color: #1f2937; margin: 16px 0 8px 0;">${trimmed.substring(4)}</h3>`;
+          } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+            htmlContent += `<div style="display: flex; align-items: flex-start; margin: 6px 0;"><span style="color: #2563eb; margin-right: 12px; margin-top: 6px; flex-shrink: 0;">•</span><p style="color: #374151; line-height: 1.6; font-size: 14px; margin: 0;">${trimmed.substring(2)}</p></div>`;
+          } else if (trimmed.includes('|') && (trimmed.includes('@') || trimmed.includes('+'))) {
+            const contactItems = trimmed.split('|').map(item => item.trim());
+            htmlContent += '<div style="text-align: center; margin: 20px 0;"><div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;">';
+            contactItems.forEach(item => {
+              htmlContent += `<span style="background: #eff6ff; padding: 6px 12px; border-radius: 20px; font-size: 14px; color: #1f2937; border: 1px solid #dbeafe;">${item}</span>`;
+            });
+            htmlContent += '</div></div>';
+          } else if (trimmed.length > 0) {
+            htmlContent += `<p style="color: #374151; margin: 8px 0; line-height: 1.6; font-size: 14px;">${trimmed}</p>`;
+          }
+        }
+        
+        if (currentSection) htmlContent += '</div>';
+        htmlContent += '</div>';
+        return htmlContent;
+      };
+      
+      tempContainer.innerHTML = createPDFContent(optimizedResume.markdown);
+      document.body.appendChild(tempContainer);
+
+      // Configure html2canvas for high quality
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 1200,
+        windowHeight: 800
+      });
+
+      // Remove temporary element
+      document.body.removeChild(tempContainer);
+
+      const imgData = canvas.toDataURL('image/png');
+      
+      // Calculate PDF dimensions
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 295; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add additional pages if needed
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Generate filename with date
+      const fileName = `enhanced-resume-${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      // Save the PDF
+      pdf.save(fileName);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -342,7 +615,7 @@ function OptimizedResumeView({
         {/* Enhanced Resume Tab */}
         <TabsContent value="resume">
           <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50">
+            <CardHeader className="bg-blue-50 border-b border-blue-100">
               <CardTitle className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
                   <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
@@ -356,13 +629,11 @@ function OptimizedResumeView({
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="max-h-[800px] overflow-y-auto p-6 bg-white border-t">
-                <div className="prose prose-lg max-w-none">
-                  <ReactMarkdown>{optimizedResume.markdown}</ReactMarkdown>
-                </div>
+              <div className="max-h-[800px] overflow-y-auto p-6 bg-gray-50 border-t">
+                <ResumeFormatter markdown={optimizedResume.markdown} />
               </div>
             </CardContent>
-            <CardFooter className="bg-gray-50 flex justify-between">
+            <CardFooter className="bg-gray-50 border-t border-gray-200 flex justify-between">
               <div className="flex gap-3">
                 <Button variant="outline" onClick={onBack}>
                   <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -374,12 +645,37 @@ function OptimizedResumeView({
                   Start Over
                 </Button>
               </div>
-              <Button onClick={onDownload} className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700">
-                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-                Download Enhanced Resume
-              </Button>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  onClick={handleDownloadMarkdown}
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                  Download Markdown
+                </Button>
+                <Button 
+                  onClick={handleDownloadPDF} 
+                  disabled={isGeneratingPdf}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {isGeneratingPdf ? (
+                    <>
+                      <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                      Download PDF
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -855,7 +1151,7 @@ function ResultsView({
                     <h4 className="font-semibold mb-3 text-green-700">Strong Bullet Points</h4>
                     <ul className="space-y-2">
                       {(result.content_quality?.strong_bullets || []).slice(0, 5).map((bullet, index) => (
-                        <li key={index} className="p-3 bg-green-50 border-l-4 border-green-400 rounded text-sm">
+                        <li key={index} className="p-3 bg-green-50 border border-green-200 rounded text-sm">
                           "{bullet}"
                         </li>
                       ))}
@@ -1308,6 +1604,6 @@ function ScoreCard({
           </div>
         </div>
       </CardContent>
-    </Card>
+    </Card> 
   );
 } 
