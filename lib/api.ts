@@ -2,6 +2,7 @@ import { AuthTokens, UserProfile, getStoredTokens } from "./auth";
 import {
   LearningPath,
   LearningPathRequest,
+  LearningPathStats,
   Niche,
   PathQuestion,
 } from "./models/learning-path";
